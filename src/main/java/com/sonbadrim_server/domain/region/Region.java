@@ -1,0 +1,37 @@
+package com.sonbadrim_server.domain.region;
+
+import com.sonbadrim_server.domain.engineer.Engineer;
+import com.sonbadrim_server.domain.user.User;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import java.util.ArrayList;
+import java.util.List;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+@Getter
+@Entity
+@Table(name = "region")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Region {
+
+    @Id
+    @Column(name = "region_id")
+    private Integer id;
+
+    @Column(name = "city", nullable = false, length = 50)
+    private String city;
+
+    @Column(name = "district", nullable = false, length = 50)
+    private String district;
+
+    @OneToMany(mappedBy = "region")
+    private List<User> users = new ArrayList<>();
+
+    @OneToMany(mappedBy = "region")
+    private List<Engineer> engineers = new ArrayList<>();
+}
