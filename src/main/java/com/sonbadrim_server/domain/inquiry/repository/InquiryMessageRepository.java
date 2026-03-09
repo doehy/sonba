@@ -1,12 +1,17 @@
 package com.sonbadrim_server.domain.inquiry.repository;
 
 import com.sonbadrim_server.domain.inquiry.InquiryMessage;
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface InquiryMessageRepository extends JpaRepository<InquiryMessage, Long> {
 
-    List<InquiryMessage> findTop30ByInquiryIdOrderByIdDesc(Long inquiryId);
+    Page<InquiryMessage> findByInquiryIdOrderByIdDesc(Long inquiryId, Pageable pageable);
 
-    List<InquiryMessage> findTop30ByInquiryIdAndIdLessThanOrderByIdDesc(Long inquiryId, Long cursorMessageId);
+    Page<InquiryMessage> findByInquiryIdAndIdLessThanOrderByIdDesc(Long inquiryId, Long cursorMessageId, Pageable pageable);
+
+    long countByInquiryIdAndIdGreaterThanAndSenderIdNot(Long inquiryId, Long messageId, Long senderId);
+
+    long countByInquiryIdAndSenderIdNot(Long inquiryId, Long senderId);
 }
