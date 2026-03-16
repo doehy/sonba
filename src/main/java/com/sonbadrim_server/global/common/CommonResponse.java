@@ -22,7 +22,7 @@ public class CommonResponse<T> {
                 .build();
     }
 
-    public static <T> CommonResponse<T> fail(T data) {
+    public static <T> CommonResponse<T> error(T data) {
         return CommonResponse.<T>builder()
                 .success(false)
                 .data(data)
