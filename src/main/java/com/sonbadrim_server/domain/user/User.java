@@ -23,23 +23,23 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import com.sonbadrim_server.global.BaseTimeEntity;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
+@Builder
 @Getter
 @Entity
 @Table(name = "`user`")
+@AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id")
-    private Long id;
+    private Long userId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "region_id", nullable = false)
+    @JoinColumn(name = "region_id")
     private Region region;
 
     @Column(name = "kakao_id", nullable = false, unique = true)
@@ -86,4 +86,29 @@ public class User extends BaseTimeEntity {
 
     @OneToMany(mappedBy = "sender")
     private List<InquiryMessage> inquiryMessages = new ArrayList<>();
+
+    public void updateKakaoAccessToken(String kakaoAccessToken) {
+        this.kakaoAccessToken = kakaoAccessToken;
+    }
+
+    public void updateSignupInfo(Region region, String nickname, LocalDate birth, Gender gender) {
+        this.region = region;
+        this.nickname = nickname;
+        this.birth = birth;
+        this.gender = gender;
+    }
+
+    public void completeSignup() {
+        this.status = UserStatus.ACTIVE;
+    }
+
+    public void clearKakaoAccessToken() {
+        this.kakaoAccessToken = null;
+    }
+
+    public void withdraw() {
+        this.status = UserStatus.INACTIVE;
+        this.kakaoAccessToken = null;
+    }
+
 }

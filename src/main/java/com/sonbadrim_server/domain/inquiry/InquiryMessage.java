@@ -24,7 +24,7 @@ public class InquiryMessage extends BaseTimeEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "inquiry_message_id")
-    private Long id;
+    private Long inquiryMessageId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "inquiry_id", nullable = false)

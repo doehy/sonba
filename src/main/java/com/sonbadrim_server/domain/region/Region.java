@@ -22,7 +22,7 @@ public class Region extends BaseTimeEntity {
 
     @Id
     @Column(name = "region_id")
-    private Integer id;
+    private Integer regionId;
 
     @Column(name = "city", nullable = false, length = 50)
     private String city;

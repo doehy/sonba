@@ -22,7 +22,7 @@ public class NotificationType extends BaseTimeEntity {
 
     @Id
     @Column(name = "notification_type_id")
-    private Integer id;
+    private Integer notificationTypeId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 30)

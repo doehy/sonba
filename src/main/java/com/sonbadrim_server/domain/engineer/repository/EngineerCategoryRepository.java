@@ -6,7 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface EngineerCategoryRepository extends JpaRepository<EngineerCategory, Long> {
 
-    List<EngineerCategory> findByEngineerId(Long engineerId);
 
-    void deleteByEngineerId(Long engineerId);
 }

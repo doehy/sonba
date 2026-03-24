@@ -21,7 +21,7 @@ public class Category extends BaseTimeEntity {
 
     @Id
     @Column(name = "category_id")
-    private Integer id;
+    private Integer categoryId;
 
     @Column(name = "category_name", nullable = false, length = 20)
     private String categoryName;

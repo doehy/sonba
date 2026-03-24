@@ -30,7 +30,7 @@ public class Block extends BaseTimeEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "block_id")
-    private Long id;
+    private Long blockId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "blocker_user_id", nullable = false)

@@ -6,7 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface BlockRepository extends JpaRepository<Block, Long> {
 
-    boolean existsByBlockerIdAndBlockedId(Long blockerId, Long blockedId);
 
-    List<Block> findByBlockerId(Long blockerId);
 }

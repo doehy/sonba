@@ -24,7 +24,7 @@ public class Portfolio extends BaseTimeEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "portfolio_id")
-    private Long id;
+    private Long portfolioId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "engineer_id", nullable = false)
