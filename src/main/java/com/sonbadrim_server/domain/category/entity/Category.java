@@ -1,6 +1,6 @@
-package com.sonbadrim_server.domain.category;
+package com.sonbadrim_server.domain.category.entity;
 
-import com.sonbadrim_server.domain.engineer.EngineerCategory;
+import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

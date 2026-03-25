@@ -1,8 +1,8 @@
-package com.sonbadrim_server.domain.engineer;
+package com.sonbadrim_server.domain.engineer.entity;
 
-import com.sonbadrim_server.domain.portfolio.Portfolio;
-import com.sonbadrim_server.domain.region.Region;
-import com.sonbadrim_server.domain.user.User;
+import com.sonbadrim_server.domain.portfolio.entity.Portfolio;
+import com.sonbadrim_server.domain.region.entity.Region;
+import com.sonbadrim_server.domain.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

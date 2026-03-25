@@ -1,11 +1,11 @@
-package com.sonbadrim_server.domain.user;
+package com.sonbadrim_server.domain.user.entity;
 
-import com.sonbadrim_server.domain.block.Block;
-import com.sonbadrim_server.domain.engineer.Engineer;
-import com.sonbadrim_server.domain.inquiry.Inquiry;
-import com.sonbadrim_server.domain.inquiry.InquiryMessage;
-import com.sonbadrim_server.domain.notification.Notification;
-import com.sonbadrim_server.domain.region.Region;
+import com.sonbadrim_server.domain.block.entity.Block;
+import com.sonbadrim_server.domain.engineer.entity.Engineer;
+import com.sonbadrim_server.domain.inquiry.entity.Inquiry;
+import com.sonbadrim_server.domain.inquiry.entity.InquiryMessage;
+import com.sonbadrim_server.domain.notification.entity.Notification;
+import com.sonbadrim_server.domain.region.entity.Region;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

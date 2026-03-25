@@ -1,6 +1,6 @@
 package com.sonbadrim_server.domain.user.repository;
 
-import com.sonbadrim_server.domain.user.User;
+import com.sonbadrim_server.domain.user.entity.User;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 

@@ -1,6 +1,6 @@
-package com.sonbadrim_server.domain.block;
+package com.sonbadrim_server.domain.inquiry.entity;
 
-import com.sonbadrim_server.domain.user.User;
+import com.sonbadrim_server.domain.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -10,7 +10,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import com.sonbadrim_server.global.BaseTimeEntity;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -18,25 +17,23 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(
-        name = "`block`",
-        uniqueConstraints = {
-            @UniqueConstraint(name = "uk_block_pair", columnNames = {"blocker_user_id", "blocked_user_id"})
-        }
-)
+@Table(name = "inquiry_message")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Block extends BaseTimeEntity {
+public class InquiryMessage extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "block_id")
-    private Long blockId;
+    @Column(name = "inquiry_message_id")
+    private Long inquiryMessageId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "blocker_user_id", nullable = false)
-    private User blocker;
+    @JoinColumn(name = "inquiry_id", nullable = false)
+    private Inquiry inquiry;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "blocked_user_id", nullable = false)
-    private User blocked;
+    @JoinColumn(name = "sender_id", nullable = false)
+    private User sender;
+
+    @Column(name = "context", nullable = false, columnDefinition = "TEXT")
+    private String content;
 }

@@ -1,7 +1,7 @@
 package com.sonbadrim_server.domain.user.controller;
 
 //import org.springframework.data.redis.core.RedisTemplate;
-import com.sonbadrim_server.domain.user.User;
+import com.sonbadrim_server.domain.user.entity.User;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
 import com.sonbadrim_server.domain.user.dto.response.LoginResponse;
 import com.sonbadrim_server.domain.user.service.KakaoService;

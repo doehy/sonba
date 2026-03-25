@@ -1,7 +1,7 @@
 package com.sonbadrim_server.global.filter;
 
-import com.sonbadrim_server.domain.user.User;
-import com.sonbadrim_server.domain.user.UserStatus;
+import com.sonbadrim_server.domain.user.entity.User;
+import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;

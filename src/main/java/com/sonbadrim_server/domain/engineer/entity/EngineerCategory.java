@@ -1,6 +1,6 @@
-package com.sonbadrim_server.domain.inquiry;
+package com.sonbadrim_server.domain.engineer.entity;
 
-import com.sonbadrim_server.domain.user.User;
+import com.sonbadrim_server.domain.category.entity.Category;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import com.sonbadrim_server.global.BaseTimeEntity;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -17,23 +18,25 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "inquiry_message")
+@Table(
+        name = "engineer_category",
+        uniqueConstraints = {
+            @UniqueConstraint(name = "uk_engineer_category", columnNames = {"engineer_id", "category_id"})
+        }
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class InquiryMessage extends BaseTimeEntity {
+public class EngineerCategory extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "inquiry_message_id")
-    private Long inquiryMessageId;
+    @Column(name = "engineer_category_id")
+    private Long engineerCategoryId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "inquiry_id", nullable = false)
-    private Inquiry inquiry;
+    @JoinColumn(name = "engineer_id", nullable = false)
+    private Engineer engineer;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "sender_id", nullable = false)
-    private User sender;
-
-    @Column(name = "context", nullable = false, columnDefinition = "TEXT")
-    private String content;
+    @JoinColumn(name = "category_id", nullable = false)
+    private Category category;
 }

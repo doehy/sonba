@@ -1,6 +1,6 @@
-package com.sonbadrim_server.domain.inquiry;
+package com.sonbadrim_server.domain.inquiry.entity;
 
-import com.sonbadrim_server.domain.user.User;
+import com.sonbadrim_server.domain.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

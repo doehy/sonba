@@ -1,11 +1,10 @@
 package com.sonbadrim_server.domain.user.service;
 
-import com.sonbadrim_server.domain.region.Region;
+import com.sonbadrim_server.domain.region.entity.Region;
 import com.sonbadrim_server.domain.region.repository.RegionRepository;
-import com.sonbadrim_server.domain.user.Gender;
-import com.sonbadrim_server.domain.user.User;
-import com.sonbadrim_server.domain.user.UserRole;
-import com.sonbadrim_server.domain.user.UserStatus;
+import com.sonbadrim_server.domain.user.entity.User;
+import com.sonbadrim_server.domain.user.entity.UserRole;
+import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.global.exception.CustomException;
@@ -15,19 +14,13 @@ import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
 
 import javax.crypto.SecretKey;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.Objects;
 
 @Log4j2
 @Service

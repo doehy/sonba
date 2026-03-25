@@ -1,7 +1,7 @@
-package com.sonbadrim_server.domain.region;
+package com.sonbadrim_server.domain.region.entity;
 
-import com.sonbadrim_server.domain.engineer.Engineer;
-import com.sonbadrim_server.domain.user.User;
+import com.sonbadrim_server.domain.engineer.entity.Engineer;
+import com.sonbadrim_server.domain.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

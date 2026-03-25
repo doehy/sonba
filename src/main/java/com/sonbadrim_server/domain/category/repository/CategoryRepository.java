@@ -1,6 +1,6 @@
 package com.sonbadrim_server.domain.category.repository;
 
-import com.sonbadrim_server.domain.category.Category;
+import com.sonbadrim_server.domain.category.entity.Category;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 

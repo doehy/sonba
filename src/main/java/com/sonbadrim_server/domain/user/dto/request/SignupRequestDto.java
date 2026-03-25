@@ -1,6 +1,6 @@
 package com.sonbadrim_server.domain.user.dto.request;
 
-import com.sonbadrim_server.domain.user.Gender;
+import com.sonbadrim_server.domain.user.entity.Gender;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
