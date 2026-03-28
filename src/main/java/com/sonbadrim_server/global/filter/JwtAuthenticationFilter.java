@@ -42,14 +42,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
 
         String header = request.getHeader("Authorization");
-
         if (header == null || !header.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
         String token = header.substring(7);
-
         try {
             SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
 
@@ -58,12 +56,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .build()
                     .parseClaimsJws(token)
                     .getBody();
-
-            Long kakaoId = Long.valueOf(claims.getSubject());
-
-            User user = userRepository.findByKakaoId(kakaoId)
+            Long userId = Long.valueOf(claims.getSubject());
+            User user = userRepository.findByUserId(userId)
                     .orElseThrow(() -> new CustomException(ErrorCode.UNAUTHORIZED));
-
             if (user.getStatus() == UserStatus.INACTIVE && !isLogoutRequest(request)) {
                 throw new CustomException(ErrorCode.USER_WITHDRAWN);
             }
@@ -71,7 +66,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
                 UsernamePasswordAuthenticationToken auth =
                         new UsernamePasswordAuthenticationToken(
-                                user.getUserId(),   // 또는 CustomPrincipal
+                                user,
                                 null,
                                 Collections.emptyList()
                         );

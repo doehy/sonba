@@ -2,7 +2,6 @@ package com.sonbadrim_server.domain.user.service;
 
 import com.sonbadrim_server.domain.region.Region;
 import com.sonbadrim_server.domain.region.repository.RegionRepository;
-import com.sonbadrim_server.domain.user.Gender;
 import com.sonbadrim_server.domain.user.User;
 import com.sonbadrim_server.domain.user.UserRole;
 import com.sonbadrim_server.domain.user.UserStatus;
@@ -15,8 +14,6 @@ import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,20 +50,13 @@ public class UserService {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
-        Long kakaoId = 0L;
-        try {
-            kakaoId = Long.valueOf(authentication.getName());
-        } catch (NumberFormatException e) {
-            throw new  CustomException(ErrorCode.UNAUTHORIZED);
-        }
+        Object principal = authentication.getPrincipal();
 
-        Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
-        if (userOpt.isEmpty()) {
-            throw new CustomException(ErrorCode.USER_NOT_FOUND);
+        if (!(principal instanceof User user)) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
-
-        User user = userOpt.get();
-        return user;
+        return userRepository.findById(user.getUserId())
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
     }
 
     public User getMemberById(Long memberId){
