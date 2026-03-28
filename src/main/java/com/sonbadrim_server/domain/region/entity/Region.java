@@ -2,11 +2,7 @@ package com.sonbadrim_server.domain.region.entity;
 
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.user.entity.User;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.List;
 import com.sonbadrim_server.global.BaseTimeEntity;
@@ -16,11 +12,17 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "region")
+@Table(
+        name = "region",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_region_city_district", columnNames = {"city", "district"})
+        }
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Region extends BaseTimeEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "region_id")
     private Integer regionId;
 
