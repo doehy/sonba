@@ -24,7 +24,13 @@ public enum ErrorCode {
     KAKAO_API_ERROR(502, "USER_502_2", "카카오 API 응답에 실패했습니다."),
 
     // Region
-    REGION_NOT_FOUND(404, "Region_404_1", "지역을 찾을 수 없습니다.");
+    REGION_NOT_FOUND(404, "Region_404_1", "지역을 찾을 수 없습니다."),
+
+    // Image
+    INVALID_IMAGE_FOLDER_TYPE(400, "IMAGE_400_1", "유효하지 않은 이미지 폴더 타입입니다."),
+    INVALID_IMAGE_CONTENT_TYPE(400, "IMAGE_400_2", "지원하지 않는 이미지 형식입니다."),
+    INVALID_IMAGE_SIZE(400, "IMAGE_400_3", "이미지 크기가 유효하지 않습니다."),
+    IMAGE_SIZE_EXCEEDED(400, "IMAGE_400_4", "이미지 크기는 5MB 이하여야 합니다.");
 
     private final int status;
     private final String code;
