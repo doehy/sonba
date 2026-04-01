@@ -39,4 +39,11 @@ public class EngineerCategory extends BaseTimeEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
+
+    public static EngineerCategory create(Engineer engineer, Category category) {
+        EngineerCategory engineerCategory = new EngineerCategory();
+        engineerCategory.engineer = engineer;
+        engineerCategory.category = category;
+        return engineerCategory;
+    }
 }

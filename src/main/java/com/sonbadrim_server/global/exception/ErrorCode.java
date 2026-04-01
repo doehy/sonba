@@ -24,7 +24,15 @@ public enum ErrorCode {
     KAKAO_API_ERROR(502, "USER_502_2", "카카오 API 응답에 실패했습니다."),
 
     // Region
-    REGION_NOT_FOUND(404, "Region_404_1", "지역을 찾을 수 없습니다.");
+    REGION_NOT_FOUND(404, "Region_404_1", "지역을 찾을 수 없습니다."),
+
+    // Engineer
+    ENGINEER_ALREADY_REGISTERED(409, "ENGINEER_409_1", "이미 기술자 등록이 완료된 사용자입니다."),
+    INVALID_ENGINEER_CATEGORY(400, "ENGINEER_400_1", "유효하지 않은 시공분야가 포함되어 있습니다."),
+
+    // Image
+    INVALID_PROFILE_IMAGE(400, "IMAGE_400_1", "유효하지 않은 프로필 이미지입니다."),
+    INVALID_PORTFOLIO_IMAGE(400, "IMAGE_400_2", "유효하지 않은 포트폴리오 이미지입니다.");
 
     private final int status;
     private final String code;

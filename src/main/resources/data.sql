@@ -1,0 +1,12 @@
+INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (1, '주방', true);
+INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (2, '도배', true);
+INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (3, '마루', true);
+INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (4, '장판', true);
+INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (5, '욕실', true);
+INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (6, '중문/도어', true);
+INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (7, '조명', true);
+INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (8, '시트필름', true);
+INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (9, '커튼블라인드', true);
+INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (10, '창호/샷시', true);
+INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (11, '타일', true);
+INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (12, '페인트', true);

@@ -1,11 +1,8 @@
 package com.sonbadrim_server.domain.category.entity;
 
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+
 import java.util.ArrayList;
 import java.util.List;
 import com.sonbadrim_server.global.BaseTimeEntity;
@@ -15,7 +12,12 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "category")
+@Table(
+        name = "category",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_category_name", columnNames = {"category_name"})
+        }
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Category extends BaseTimeEntity {
 
@@ -25,9 +27,6 @@ public class Category extends BaseTimeEntity {
 
     @Column(name = "category_name", nullable = false, length = 20)
     private String categoryName;
-
-    @Column(name = "is_active", nullable = false)
-    private boolean active;
 
     @OneToMany(mappedBy = "category")
     private List<EngineerCategory> engineerCategories = new ArrayList<>();
