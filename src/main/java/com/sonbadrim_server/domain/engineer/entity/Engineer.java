@@ -43,7 +43,7 @@ public class Engineer extends BaseTimeEntity {
     @Column(name = "profileImage", length = 512)
     private String profileImage;
 
-    @Column(name = "introduction", columnDefinition = "TEXT")
+    @Column(name = "introduction", columnDefinition = "TEXT", length = 300)
     private String introduction;
 
     @Column(name = "store_name", length = 20)
@@ -66,4 +66,28 @@ public class Engineer extends BaseTimeEntity {
 
     @OneToMany(mappedBy = "engineer")
     private List<EngineerCategory> engineerCategories = new ArrayList<>();
+
+    public static Engineer create(
+            User user,
+            Region region,
+            String profileImage,
+            String introduction,
+            String storeName,
+            String storeAddress,
+            String phone,
+            boolean phonePublic,
+            String engineerName
+    ) {
+        Engineer engineer = new Engineer();
+        engineer.user = user;
+        engineer.region = region;
+        engineer.profileImage = profileImage;
+        engineer.introduction = introduction;
+        engineer.storeName = storeName;
+        engineer.storeAddress = storeAddress;
+        engineer.phone = phone;
+        engineer.phonePublic = phonePublic;
+        engineer.engineerName = engineerName;
+        return engineer;
+    }
 }

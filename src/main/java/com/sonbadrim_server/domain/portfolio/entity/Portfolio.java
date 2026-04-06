@@ -32,4 +32,11 @@ public class Portfolio extends BaseTimeEntity {
 
     @Column(name = "portfolioImage", nullable = false, length = 255)
     private String portfolioImage;
+
+    public static Portfolio create(Engineer engineer, String portfolioImage) {
+        Portfolio portfolio = new Portfolio();
+        portfolio.engineer = engineer;
+        portfolio.portfolioImage = portfolioImage;
+        return portfolio;
+    }
 }
