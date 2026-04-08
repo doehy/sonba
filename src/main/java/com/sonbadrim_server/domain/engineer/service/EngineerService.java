@@ -31,15 +31,6 @@ import java.util.stream.Collectors;
 @Transactional
 public class EngineerService {
 
-    private static final String PROFILE_FOLDER = "engineer-profile";
-    private static final String PORTFOLIO_FOLDER = "portfolio";
-
-    @Value("${cloudflare.r2.public-domain}")
-    private String publicDomain;
-
-    @Value("${app.image.default-engineer-profile}")
-    private String defaultEngineerProfileImage;
-
     private final EngineerRepository engineerRepository;
     private final EngineerCategoryRepository engineerCategoryRepository;
     private final PortfolioRepository portfolioRepository;
@@ -77,17 +68,10 @@ public class EngineerService {
             throw new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY);
         }
 
-        validateProfileImage(request.getProfileImage());
-        validatePortfolioImages(request.getPortfolioImages());
-
-        String profileImage = (request.getProfileImage() == null || request.getProfileImage().isBlank())
-                ? defaultEngineerProfileImage
-                : request.getProfileImage().trim();
-
         Engineer engineer = Engineer.create(
                 currentUser,
                 region,
-                profileImage,
+                trimToNull(request.getProfileImage()),
                 trimToNull(request.getIntroduction()),
                 trimToNull(request.getStoreName()),
                 trimToNull(request.getStoreAddress()),
@@ -102,9 +86,13 @@ public class EngineerService {
                 .toList();
         engineerCategoryRepository.saveAll(mappings);
 
-        List<Portfolio> portfolios = request.getPortfolioImages().stream()
-                .map(String::trim)
-                .filter(image -> !image.isBlank())
+        List<String> portfolioImages = request.getPortfolioImages() == null
+                ? List.of()
+                : request.getPortfolioImages();
+
+        List<Portfolio> portfolios = portfolioImages.stream()
+                .map(this::trimToNull)
+                .filter(image -> image != null)
                 .distinct()
                 .map(image -> Portfolio.create(engineer, image))
                 .toList();
@@ -116,39 +104,65 @@ public class EngineerService {
         return new EngineerCreateResponse(engineer.getEngineerId());
     }
 
-    private void validateProfileImage(String profileImage) {
-        if (profileImage == null || profileImage.isBlank()) {
-            return;
-        }
+    public void updateEngineer(Long engineerId, EngineerCreateRequest request) {
+        User currentUser = userService.getCurrentUser();
 
-        String trimmed = profileImage.trim();
-        String profilePrefix = buildFolderPrefix(PROFILE_FOLDER);
+        Engineer engineer = engineerRepository.findById(engineerId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
 
-        if (!trimmed.startsWith(profilePrefix)) {
-            throw new CustomException(ErrorCode.INVALID_PROFILE_IMAGE);
+        validateOwner(engineer, currentUser);
+
+        Region region = regionRepository.findById(request.getRegionId())
+                .orElseThrow(() -> new CustomException(ErrorCode.REGION_NOT_FOUND));
+
+        engineer.updateInfo(
+                request.getEngineerName().trim(),
+                normalizePhone(request.getPhone()),
+                request.getPhonePublic(),
+                trimToNull(request.getProfileImage()),
+                trimToNull(request.getIntroduction()),
+                trimToNull(request.getStoreName()),
+                trimToNull(request.getStoreAddress()),
+                region
+        );
+
+        replaceCategories(engineer, request.getCategories());
+        replacePortfolioImages(engineer, request.getPortfolioImages());
+    }
+
+    private void validateOwner(Engineer engineer, User currentUser) {
+        if (!engineer.getUser().getUserId().equals(currentUser.getUserId())) {
+            throw new CustomException(ErrorCode.CANNOT_MODIFY_ENGINEER);
         }
     }
 
-    private void validatePortfolioImages(List<String> portfolioImages) {
-        if (portfolioImages == null || portfolioImages.isEmpty()) {
-            return;
-        }
+    private void replaceCategories(Engineer engineer, List<String> categoryNames) {
+        engineerCategoryRepository.deleteAllByEngineer(engineer);
+        engineerCategoryRepository.flush();
 
-        String portfolioPrefix = buildFolderPrefix(PORTFOLIO_FOLDER);
-
-        boolean hasInvalidImage = portfolioImages.stream()
+        List<EngineerCategory> categories = categoryNames.stream()
                 .map(String::trim)
-                .anyMatch(image -> !image.startsWith(portfolioPrefix));
+                .map(this::findCategoryByName)
+                .map(category -> EngineerCategory.create(engineer, category))
+                .toList();
 
-        if (hasInvalidImage) {
-            throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
-        }
+        engineerCategoryRepository.saveAll(categories);
     }
 
-    private String buildFolderPrefix(String folder) {
-        return publicDomain.endsWith("/")
-                ? publicDomain + folder + "/"
-                : publicDomain + "/" + folder + "/";
+    private void replacePortfolioImages(Engineer engineer, List<String> portfolioImages) {
+        portfolioRepository.deleteAllByEngineer(engineer);
+
+        List<Portfolio> images = portfolioImages.stream()
+                .map(String::trim)
+                .map(imageUrl -> Portfolio.create(engineer, imageUrl))
+                .toList();
+
+        portfolioRepository.saveAll(images);
+    }
+
+    private Category findCategoryByName(String categoryName) {
+        return categoryRepository.findByCategoryName(categoryName)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY));
     }
 
     private String trimToNull(String value) {
@@ -156,6 +170,20 @@ public class EngineerService {
             return null;
         }
         String trimmed = value.trim();
-        return trimmed.isBlank() ? null : trimmed;
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null || phone.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_PHONE_NUMBER);
+        }
+
+        String digits = phone.replaceAll("[^0-9]", "");
+
+        if (!digits.matches("^01[016789]\\d{7,8}$")) {
+            throw new CustomException(ErrorCode.INVALID_PHONE_NUMBER);
+        }
+
+        return digits;
     }
 }

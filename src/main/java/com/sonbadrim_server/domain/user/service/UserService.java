@@ -46,12 +46,15 @@ public class UserService {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
-        Object principal = authentication.getPrincipal();
 
-        if (!(principal instanceof User user)) {
+        Long userId;
+        try {
+            userId = Long.valueOf(authentication.getName());
+        } catch (NumberFormatException e) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
-        return userRepository.findById(user.getUserId())
+
+        return userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
     }
 

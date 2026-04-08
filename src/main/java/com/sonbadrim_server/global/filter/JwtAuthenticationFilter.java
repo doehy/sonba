@@ -57,7 +57,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .parseClaimsJws(token)
                     .getBody();
             Long userId = Long.valueOf(claims.getSubject());
-            User user = userRepository.findByUserId(userId)
+
+            User user = userRepository.findById(userId)
                     .orElseThrow(() -> new CustomException(ErrorCode.UNAUTHORIZED));
             if (user.getStatus() == UserStatus.INACTIVE && !isLogoutRequest(request)) {
                 throw new CustomException(ErrorCode.USER_WITHDRAWN);

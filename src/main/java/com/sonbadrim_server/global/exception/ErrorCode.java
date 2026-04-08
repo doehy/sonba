@@ -15,6 +15,13 @@ public enum ErrorCode {
     EXTERNAL_API_ERROR(503, "GLOBAL_503_1", "외부 API 서버 호출 중 오류가 발생했습니다."),
     UNAUTHORIZED(401, "GLOBAL_401_1", "인증되지 않은 사용자입니다."),
 
+    // NORMALIZE
+    INVALID_PHONE_NUMBER(400, "NORMALIZE_400_1", "유효하지 않은 전화번호 형식입니다."),
+
+    //Category
+    INVALID_ENGINEER_CATEGORY(400, "ENGINEER_400_1", "유효하지 않은 시공분야가 포함되어 있습니다."),
+
+
     // User
     USER_NOT_FOUND(404, "USER_404_1", "유저를 찾을 수 없습니다."),
     USER_WITHDRAWN(403, "USER_403_1", "탈퇴한 사용자입니다."),
@@ -27,8 +34,9 @@ public enum ErrorCode {
     REGION_NOT_FOUND(404, "Region_404_1", "지역을 찾을 수 없습니다."),
 
     // Engineer
+    ENGINEER_NOT_FOUND(404, "ENGINEER_404_1", "기술자를 찾을 수 없습니다."),
     ENGINEER_ALREADY_REGISTERED(409, "ENGINEER_409_1", "이미 기술자 등록이 완료된 사용자입니다."),
-    INVALID_ENGINEER_CATEGORY(400, "ENGINEER_400_1", "유효하지 않은 시공분야가 포함되어 있습니다."),
+    CANNOT_MODIFY_ENGINEER(403,"ENGINEER_403_1", "기술자 정보를 수정할 권한이 없습니다."),
 
     // Image
     INVALID_PROFILE_IMAGE(400, "IMAGE_400_1", "유효하지 않은 프로필 이미지입니다."),
