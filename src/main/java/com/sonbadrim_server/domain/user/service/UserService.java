@@ -46,20 +46,16 @@ public class UserService {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
-        Long kakaoId = 0L;
+
+        Long userId;
         try {
-            kakaoId = Long.valueOf(authentication.getName());
+            userId = Long.valueOf(authentication.getName());
         } catch (NumberFormatException e) {
-            throw new  CustomException(ErrorCode.UNAUTHORIZED);
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
 
-        Optional<User> userOpt = userRepository.findByKakaoId(kakaoId);
-        if (userOpt.isEmpty()) {
-            throw new CustomException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        User user = userOpt.get();
-        return user;
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
     }
 
     public User getMemberById(Long memberId){

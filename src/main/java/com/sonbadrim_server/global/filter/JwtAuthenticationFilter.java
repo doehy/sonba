@@ -59,9 +59,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .parseClaimsJws(token)
                     .getBody();
 
-            Long kakaoId = Long.valueOf(claims.getSubject());
+            Long userId = Long.valueOf(claims.getSubject());
 
-            User user = userRepository.findByKakaoId(kakaoId)
+            User user = userRepository.findById(userId)
                     .orElseThrow(() -> new CustomException(ErrorCode.UNAUTHORIZED));
 
             if (user.getStatus() == UserStatus.INACTIVE && !isLogoutRequest(request)) {

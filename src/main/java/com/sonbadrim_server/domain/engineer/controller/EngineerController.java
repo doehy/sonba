@@ -25,9 +25,7 @@ public class EngineerController {
 
     @Operation(summary = "기술자 등록", description = "현재 로그인 사용자를 기술자로 등록합니다.")
     @PostMapping
-    public ResponseEntity<?> registerEngineer(
-            @Valid @RequestBody EngineerCreateRequest request
-    ) {
+    public ResponseEntity<?> registerEngineer(@Valid @RequestBody EngineerCreateRequest request) {
         EngineerCreateResponse response = engineerService.registerEngineer(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(response));
     }

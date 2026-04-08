@@ -31,15 +31,6 @@ import java.util.stream.Collectors;
 @Transactional
 public class EngineerService {
 
-    private static final String PROFILE_FOLDER = "engineer-profile";
-    private static final String PORTFOLIO_FOLDER = "portfolio";
-
-    @Value("${cloudflare.r2.public-domain}")
-    private String publicDomain;
-
-    @Value("${app.image.default-engineer-profile}")
-    private String defaultEngineerProfileImage;
-
     private final EngineerRepository engineerRepository;
     private final EngineerCategoryRepository engineerCategoryRepository;
     private final PortfolioRepository portfolioRepository;
@@ -77,17 +68,10 @@ public class EngineerService {
             throw new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY);
         }
 
-        validateProfileImage(request.getProfileImage());
-        validatePortfolioImages(request.getPortfolioImages());
-
-        String profileImage = (request.getProfileImage() == null || request.getProfileImage().isBlank())
-                ? defaultEngineerProfileImage
-                : request.getProfileImage().trim();
-
         Engineer engineer = Engineer.create(
                 currentUser,
                 region,
-                profileImage,
+                trimToNull(request.getProfileImage()),
                 trimToNull(request.getIntroduction()),
                 trimToNull(request.getStoreName()),
                 trimToNull(request.getStoreAddress()),
@@ -102,9 +86,13 @@ public class EngineerService {
                 .toList();
         engineerCategoryRepository.saveAll(mappings);
 
-        List<Portfolio> portfolios = request.getPortfolioImages().stream()
-                .map(String::trim)
-                .filter(image -> !image.isBlank())
+        List<String> portfolioImages = request.getPortfolioImages() == null
+                ? List.of()
+                : request.getPortfolioImages();
+
+        List<Portfolio> portfolios = portfolioImages.stream()
+                .map(this::trimToNull)
+                .filter(image -> image != null)
                 .distinct()
                 .map(image -> Portfolio.create(engineer, image))
                 .toList();
@@ -114,41 +102,6 @@ public class EngineerService {
         }
 
         return new EngineerCreateResponse(engineer.getEngineerId());
-    }
-
-    private void validateProfileImage(String profileImage) {
-        if (profileImage == null || profileImage.isBlank()) {
-            return;
-        }
-
-        String trimmed = profileImage.trim();
-        String profilePrefix = buildFolderPrefix(PROFILE_FOLDER);
-
-        if (!trimmed.startsWith(profilePrefix)) {
-            throw new CustomException(ErrorCode.INVALID_PROFILE_IMAGE);
-        }
-    }
-
-    private void validatePortfolioImages(List<String> portfolioImages) {
-        if (portfolioImages == null || portfolioImages.isEmpty()) {
-            return;
-        }
-
-        String portfolioPrefix = buildFolderPrefix(PORTFOLIO_FOLDER);
-
-        boolean hasInvalidImage = portfolioImages.stream()
-                .map(String::trim)
-                .anyMatch(image -> !image.startsWith(portfolioPrefix));
-
-        if (hasInvalidImage) {
-            throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
-        }
-    }
-
-    private String buildFolderPrefix(String folder) {
-        return publicDomain.endsWith("/")
-                ? publicDomain + folder + "/"
-                : publicDomain + "/" + folder + "/";
     }
 
     private String trimToNull(String value) {
