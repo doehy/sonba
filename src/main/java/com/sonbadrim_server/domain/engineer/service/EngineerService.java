@@ -104,11 +104,86 @@ public class EngineerService {
         return new EngineerCreateResponse(engineer.getEngineerId());
     }
 
+    public void updateEngineer(Long engineerId, EngineerCreateRequest request) {
+        User currentUser = userService.getCurrentUser();
+
+        Engineer engineer = engineerRepository.findById(engineerId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+
+        validateOwner(engineer, currentUser);
+
+        Region region = regionRepository.findById(request.getRegionId())
+                .orElseThrow(() -> new CustomException(ErrorCode.REGION_NOT_FOUND));
+
+        engineer.updateInfo(
+                request.getEngineerName().trim(),
+                normalizePhone(request.getPhone()),
+                request.getPhonePublic(),
+                trimToNull(request.getProfileImage()),
+                trimToNull(request.getIntroduction()),
+                trimToNull(request.getStoreName()),
+                trimToNull(request.getStoreAddress()),
+                region
+        );
+
+        replaceCategories(engineer, request.getCategories());
+        replacePortfolioImages(engineer, request.getPortfolioImages());
+    }
+
+    private void validateOwner(Engineer engineer, User currentUser) {
+        if (!engineer.getUser().getUserId().equals(currentUser.getUserId())) {
+            throw new CustomException(ErrorCode.CANNOT_MODIFY_ENGINEER);
+        }
+    }
+
+    private void replaceCategories(Engineer engineer, List<String> categoryNames) {
+        engineerCategoryRepository.deleteAllByEngineer(engineer);
+        engineerCategoryRepository.flush();
+
+        List<EngineerCategory> categories = categoryNames.stream()
+                .map(String::trim)
+                .map(this::findCategoryByName)
+                .map(category -> EngineerCategory.create(engineer, category))
+                .toList();
+
+        engineerCategoryRepository.saveAll(categories);
+    }
+
+    private void replacePortfolioImages(Engineer engineer, List<String> portfolioImages) {
+        portfolioRepository.deleteAllByEngineer(engineer);
+
+        List<Portfolio> images = portfolioImages.stream()
+                .map(String::trim)
+                .map(imageUrl -> Portfolio.create(engineer, imageUrl))
+                .toList();
+
+        portfolioRepository.saveAll(images);
+    }
+
+    private Category findCategoryByName(String categoryName) {
+        return categoryRepository.findByCategoryName(categoryName)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY));
+    }
+
     private String trimToNull(String value) {
         if (value == null) {
             return null;
         }
         String trimmed = value.trim();
-        return trimmed.isBlank() ? null : trimmed;
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null || phone.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_PHONE_NUMBER);
+        }
+
+        String digits = phone.replaceAll("[^0-9]", "");
+
+        if (!digits.matches("^01[016789]\\d{7,8}$")) {
+            throw new CustomException(ErrorCode.INVALID_PHONE_NUMBER);
+        }
+
+        return digits;
     }
 }

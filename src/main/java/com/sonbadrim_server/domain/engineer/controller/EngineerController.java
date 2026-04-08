@@ -10,10 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "기술자", description = "기술자 등록/조회 API")
 @RestController
@@ -28,5 +25,13 @@ public class EngineerController {
     public ResponseEntity<?> registerEngineer(@Valid @RequestBody EngineerCreateRequest request) {
         EngineerCreateResponse response = engineerService.registerEngineer(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(CommonResponse.success(response));
+    }
+
+    @Operation(summary = "기술자 수정", description = "현재 로그인 사용자의 기술자 정보를 수정합니다.")
+    @PatchMapping("/{engineerId}")
+    public ResponseEntity<?> updateEngineer(@PathVariable Long engineerId,
+                                            @Valid @RequestBody EngineerCreateRequest request) {
+        engineerService.updateEngineer(engineerId, request);
+        return ResponseEntity.ok(CommonResponse.success(null));
     }
 }

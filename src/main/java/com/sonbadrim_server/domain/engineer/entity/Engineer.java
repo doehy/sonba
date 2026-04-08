@@ -90,4 +90,24 @@ public class Engineer extends BaseTimeEntity {
         engineer.engineerName = engineerName;
         return engineer;
     }
+
+    public void updateInfo(
+            String engineerName,
+            String phone,
+            Boolean phonePublic,
+            String profileImage,
+            String introduction,
+            String storeName,
+            String storeAddress,
+            Region region
+    ) {
+        this.engineerName = engineerName;
+        this.phone = phone;
+        this.phonePublic = phonePublic;
+        this.profileImage = profileImage;
+        this.introduction = introduction;
+        this.storeName = storeName;
+        this.storeAddress = storeAddress;
+        this.region = region;
+    }
 }
