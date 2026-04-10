@@ -37,6 +37,7 @@ public enum ErrorCode {
     ENGINEER_NOT_FOUND(404, "ENGINEER_404_1", "기술자를 찾을 수 없습니다."),
     ENGINEER_ALREADY_REGISTERED(409, "ENGINEER_409_1", "이미 기술자 등록이 완료된 사용자입니다."),
     CANNOT_MODIFY_ENGINEER(403,"ENGINEER_403_1", "기술자 정보를 수정할 권한이 없습니다."),
+    CANNOT_UNJOIN_ENGINEER(403, "ENGINEER_403_2", "기술자 탈퇴할 권한이 없습니다."),
 
     // Image
     INVALID_PROFILE_IMAGE(400, "IMAGE_400_1", "유효하지 않은 프로필 이미지입니다."),

@@ -2,8 +2,10 @@ package com.sonbadrim_server.domain.engineer.service;
 
 import com.sonbadrim_server.domain.category.entity.Category;
 import com.sonbadrim_server.domain.category.repository.CategoryRepository;
-import com.sonbadrim_server.domain.engineer.dto.request.EngineerCreateRequest;
+import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
+import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
+import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
@@ -17,13 +19,14 @@ import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,7 +41,11 @@ public class EngineerService {
     private final RegionRepository regionRepository;
     private final UserService userService;
 
-    public EngineerCreateResponse registerEngineer(EngineerCreateRequest request) {
+    /**
+     * 기술자 등록하기
+     * @return EngineerCreateResponse
+     */
+    public EngineerCreateResponse registerEngineer(EngineerRequestDto request) {
         User currentUser = userService.getCurrentUser();
 
         if (engineerRepository.existsByUser_UserId(currentUser.getUserId())) {
@@ -104,7 +111,11 @@ public class EngineerService {
         return new EngineerCreateResponse(engineer.getEngineerId());
     }
 
-    public void updateEngineer(Long engineerId, EngineerCreateRequest request) {
+    /**
+     * 기술자 정보 수정
+     * @return void
+     */
+    public void updateEngineer(Long engineerId, EngineerRequestDto request) {
         User currentUser = userService.getCurrentUser();
 
         Engineer engineer = engineerRepository.findById(engineerId)
@@ -128,6 +139,62 @@ public class EngineerService {
 
         replaceCategories(engineer, request.getCategories());
         replacePortfolioImages(engineer, request.getPortfolioImages());
+    }
+
+    /**
+     * 기술자들의 목록을 조회한다.
+     * @return 기술자 20명 summaryDto
+     */
+    public Page<EngineerSummaryResponseDto> getEngineerList(Pageable pageable) {
+        Page<Engineer> engineerPage = engineerRepository.findAll(pageable);
+
+        List<Long> engineerIds = engineerPage.getContent().stream()
+                .map(Engineer::getEngineerId)
+                .toList();
+
+        Map<Long, List<String>> categoryMap = getCategoryMap(engineerIds);
+
+        return engineerPage.map(engineer -> EngineerSummaryResponseDto.builder()
+                .engineerId(engineer.getEngineerId())
+                .engineerName(engineer.getEngineerName())
+                .profileImage(engineer.getProfileImage())
+                .regionName(buildRegionName(engineer))
+                .categories(categoryMap.getOrDefault(engineer.getEngineerId(), Collections.emptyList()))
+                .introduction(truncateIntroduction(engineer.getIntroduction()))
+                .build()
+        );
+    }
+
+    /**
+     * 기술자 상세 조회
+     * @return EngineerDetailResponseDto
+     */
+    public EngineerDetailResponseDto getEngineerDetail(Long engineerId) {
+        Engineer engineer = engineerRepository.findDetailByEngineerId(engineerId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+
+        List<String> portfolioImages = portfolioRepository.findByEngineer_EngineerId(engineerId).stream()
+                .map(Portfolio::getPortfolioImage)
+                .toList();
+
+        return EngineerDetailResponseDto.from(engineer, portfolioImages);
+    }
+
+    /**
+     * 기술자 삭제
+     * @return void
+     */
+    public void deleteEngineer(Long engineerId) {
+        User currentUser = userService.getCurrentUser();
+
+        Engineer engineer = engineerRepository.findByEngineerIdAndUser_UserId(engineerId, currentUser.getUserId())
+                .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+
+        currentUser.clearEngineer();
+
+        engineerCategoryRepository.deleteByEngineer(engineer);
+        portfolioRepository.deleteByEngineer(engineer);
+        engineerRepository.delete(engineer);
     }
 
     private void validateOwner(Engineer engineer, User currentUser) {
@@ -186,4 +253,40 @@ public class EngineerService {
 
         return digits;
     }
+
+    private Map<Long, List<String>> getCategoryMap(List<Long> engineerIds) {
+        if (engineerIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<EngineerCategory> engineerCategories =
+                engineerCategoryRepository.findByEngineer_EngineerIdIn(engineerIds);
+
+        return engineerCategories.stream()
+                .collect(Collectors.groupingBy(
+                        engineerCategory -> engineerCategory.getEngineer().getEngineerId(),
+                        Collectors.mapping(
+                                engineerCategory -> engineerCategory.getCategory().getCategoryName(),
+                                Collectors.toList()
+                        )
+                ));
+    }
+
+    private String buildRegionName(Engineer engineer) {
+        return engineer.getRegion().getCity() + " " + engineer.getRegion().getDistrict();
+    }
+
+    private String truncateIntroduction(String introduction) {
+        if (introduction == null || introduction.isBlank()) {
+            return "";
+        }
+
+        String trimmed = introduction.trim();
+        if (trimmed.length() <= 100) {
+            return trimmed;
+        }
+
+        return trimmed.substring(0, 100) + "...";
+    }
 }
+
