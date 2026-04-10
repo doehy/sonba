@@ -64,4 +64,17 @@ public class Inquiry extends BaseTimeEntity {
 
     @OneToMany(mappedBy = "inquiry")
     private List<InquiryMessage> messages = new ArrayList<>();
+
+    public static Inquiry create(User requester, User target) {
+        Inquiry inquiry = new Inquiry();
+        inquiry.requester = requester;
+        inquiry.target = target;
+        inquiry.inquiryStatus = InquiryStatus.OPEN;
+        return inquiry;
+    }
+
+    public void updateLastMessage(Long messageId) {
+        this.lastMessageId = messageId;
+        this.lastMessageAt = LocalDateTime.now();
+    }
 }

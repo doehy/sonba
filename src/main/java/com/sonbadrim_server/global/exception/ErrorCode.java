@@ -39,6 +39,13 @@ public enum ErrorCode {
     CANNOT_MODIFY_ENGINEER(403,"ENGINEER_403_1", "기술자 정보를 수정할 권한이 없습니다."),
     CANNOT_UNJOIN_ENGINEER(403, "ENGINEER_403_2", "기술자 탈퇴할 권한이 없습니다."),
 
+    // Inquiry
+    INQUIRY_NOT_FOUND(404, "INQUIRY_404_1", "문의방을 찾을 수 없습니다."),
+    INQUIRY_ALREADY_EXISTS(409, "INQUIRY_409_1", "이미 문의방이 존재합니다."),
+    INQUIRY_FORBIDDEN(403, "INQUIRY_403_1", "해당 문의방에 접근할 권한이 없습니다."),
+    INVALID_INQUIRY_REQUEST(400, "INQUIRY_400_1", "유효하지 않은 문의 요청입니다."),
+    INQUIRY_MESSAGE_TOO_LONG(400, "INQUIRY_400_2", "문의 메시지는 500자 이하만 가능합니다."),
+
     // Image
     INVALID_PROFILE_IMAGE(400, "IMAGE_400_1", "유효하지 않은 프로필 이미지입니다."),
     INVALID_PORTFOLIO_IMAGE(400, "IMAGE_400_2", "유효하지 않은 포트폴리오 이미지입니다.");

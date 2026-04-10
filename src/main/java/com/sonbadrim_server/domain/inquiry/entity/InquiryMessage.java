@@ -36,4 +36,12 @@ public class InquiryMessage extends BaseTimeEntity {
 
     @Column(name = "context", nullable = false, columnDefinition = "TEXT")
     private String content;
+
+    public static InquiryMessage create(Inquiry inquiry, User sender, String content) {
+        InquiryMessage inquiryMessage = new InquiryMessage();
+        inquiryMessage.inquiry = inquiry;
+        inquiryMessage.sender = sender;
+        inquiryMessage.content = content;
+        return inquiryMessage;
+    }
 }
