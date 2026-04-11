@@ -19,6 +19,7 @@ import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -172,7 +174,6 @@ public class EngineerService {
     public EngineerDetailResponseDto getEngineerDetail(Long engineerId) {
         Engineer engineer = engineerRepository.findDetailByEngineerId(engineerId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
-
         List<String> portfolioImages = portfolioRepository.findByEngineer_EngineerId(engineerId).stream()
                 .map(Portfolio::getPortfolioImage)
                 .toList();
