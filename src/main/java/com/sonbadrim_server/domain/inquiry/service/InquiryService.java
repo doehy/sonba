@@ -3,6 +3,11 @@ package com.sonbadrim_server.domain.inquiry.service;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
 import com.sonbadrim_server.domain.inquiry.dto.request.CreateInquiryRequestDto;
 import com.sonbadrim_server.domain.inquiry.dto.request.SendInquiryMessageRequestDto;
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryDetailMessageResponseDto;
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryDetailResponseDto;
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryListItemResponseDto;
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryListResponseDto;
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryMessagePageResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryMessageResponseDto;
 import com.sonbadrim_server.domain.inquiry.entity.Inquiry;
 import com.sonbadrim_server.domain.inquiry.entity.InquiryMessage;
@@ -15,8 +20,19 @@ import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -30,7 +46,136 @@ public class InquiryService {
     private final UserRepository userRepository;
     private final UserService userService;
     private final EngineerRepository engineerRepository;
+    private static final int DEFAULT_MESSAGE_PAGE_SIZE = 15;
+    private static final int MAX_MESSAGE_PAGE_SIZE = 50;
 
+    /**
+     * 문의 목록을 조회
+     */
+    @Transactional(readOnly = true)
+    public InquiryListResponseDto getInquiries(int page, int size) {
+        User currentUser = userService.getCurrentUser(); // 현재 사용자가 누구인지
+
+        Page<Inquiry> inquiryPage = inquiryRepository // 내가 참여한 방은 다 가져와라
+                .findByRequester_UserIdOrTarget_UserIdOrderByLastMessageAtDesc(
+                        currentUser.getUserId(),
+                        currentUser.getUserId(),
+                        PageRequest.of(page, size)
+                );
+        //마지막 메시지 id를 다 가져와라
+        Set<Long> lastMessageIds = inquiryPage.getContent().stream()
+                .map(Inquiry::getLastMessageId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        // 마지막 메시지가 비어있으면 빈 맵을 그게 아니라면 마지막 메시지 id에 해당하는 마지막 메시지를 가져와라 그걸 기반으로 map 만들기
+        Map<Long, InquiryMessage> messageMap = lastMessageIds.isEmpty()
+                ? Map.of()
+                : inquiryMessageRepository.findByInquiryMessageIdIn(lastMessageIds)
+                .stream()
+                .collect(Collectors.toMap(InquiryMessage::getInquiryMessageId, Function.identity()));
+
+        List<InquiryListItemResponseDto> items = inquiryPage.getContent().stream()
+                .map(inquiry -> {
+                    User otherUser = inquiry.getRequester().getUserId().equals(currentUser.getUserId())
+                            ? inquiry.getTarget()
+                            : inquiry.getRequester(); // 상대방이 누구인지 찾아라.
+
+                    Long lastMessageId = inquiry.getLastMessageId(); // 마지막 메시지 아이디를 꺼내
+                    InquiryMessage lastMessage = messageMap.get(lastMessageId); // 마지막 메시지를 꺼내
+                    Long myLastReadMessageId = inquiry.getLastReadMessageIdOf(currentUser.getUserId()); //나의 마지막 메시지 아이디
+                    long unreadCount = countUnreadMessages( // 그걸 기반으로 내가 몇 개를 안 읽었는지를 꺼내
+                            inquiry.getInquiryId(),
+                            currentUser.getUserId(),
+                            myLastReadMessageId
+                    );
+
+                    String otherUserProfileImage = otherUser.getEngineer() != null // 프로필 나타내주기
+                            ? otherUser.getEngineer().getProfileImage()
+                            : null;
+
+                    return new InquiryListItemResponseDto( // dto
+                            inquiry.getInquiryId(),
+                            otherUser.getNickname(),
+                            otherUserProfileImage,
+                            lastMessage.getContent(),
+                            inquiry.getLastMessageAt(),
+                            unreadCount
+                    );
+                })
+                .toList();
+
+        return new InquiryListResponseDto(
+                items,
+                inquiryPage.hasNext()
+        );
+    }
+
+    /**
+     * 문의 상세 조회 (메타 정보만)
+     */
+    public InquiryDetailResponseDto getInquiryDetail(Long inquiryId) {
+        User currentUser = userService.getCurrentUser();
+
+        Inquiry inquiry = inquiryRepository.findByInquiryIdAndParticipant(inquiryId, currentUser.getUserId())
+                .orElseThrow(() -> new CustomException(ErrorCode.INQUIRY_NOT_FOUND));
+
+        return new InquiryDetailResponseDto(
+                inquiry.getInquiryId(),
+                inquiry.getInquiryStatus(),
+                inquiry.getRequester().getUserId(),
+                inquiry.getTarget().getUserId()
+        );
+    }
+
+    /**
+     * 문의 상세 조회(메시지 페이징)
+     */
+    public InquiryMessagePageResponseDto getInquiryMessages(Long inquiryId, Long cursor, int size) {
+        User currentUser = userService.getCurrentUser();
+
+        Inquiry inquiry = inquiryRepository.findByInquiryIdAndParticipant(inquiryId, currentUser.getUserId())
+                .orElseThrow(() -> new CustomException(ErrorCode.INQUIRY_NOT_FOUND));
+
+        int pageSize = normalizeMessagePageSize(size);
+        Pageable pageable = PageRequest.of(0, pageSize + 1);
+
+        List<InquiryMessage> queryResult = cursor == null
+                ? inquiryMessageRepository.findByInquiry_InquiryIdOrderByInquiryMessageIdDesc(inquiryId, pageable)
+                : inquiryMessageRepository.findByInquiry_InquiryIdAndInquiryMessageIdLessThanOrderByInquiryMessageIdDesc(
+                inquiryId, cursor, pageable
+        );
+
+        boolean hasNext = queryResult.size() > pageSize;
+        List<InquiryMessage> pageMessages = hasNext
+                ? queryResult.subList(0, pageSize)
+                : queryResult;
+
+        pageMessages.sort(Comparator.comparing(InquiryMessage::getInquiryMessageId));
+
+        List<InquiryDetailMessageResponseDto> items = pageMessages.stream()
+                .map(message -> new InquiryDetailMessageResponseDto(
+                        message.getInquiryMessageId(),
+                        message.getSender().getUserId(),
+                        message.getContent(),
+                        message.getCreatedAt()
+                ))
+                .toList();
+
+        if (!pageMessages.isEmpty()) {
+            Long lastMessageId = pageMessages.get(pageMessages.size() - 1).getInquiryMessageId();
+            inquiry.updateLastReadMessageId(currentUser.getUserId(), lastMessageId);
+        }
+
+        Long nextCursor = hasNext
+                ? pageMessages.get(pageMessages.size() - 1).getInquiryMessageId()
+                : null;
+
+        return new InquiryMessagePageResponseDto(items, hasNext, nextCursor);
+    }
+
+    /**
+     * 최초 문의 보내기
+     */
     public InquiryMessageResponseDto createInquiry(CreateInquiryRequestDto requestDto) {
         User requester = userService.getCurrentUser();
 
@@ -63,10 +208,14 @@ public class InquiryService {
         inquiryMessageRepository.save(firstMessage);
 
         inquiry.updateLastMessage(firstMessage.getInquiryMessageId());
+        inquiry.updateLastReadMessageId(requester.getUserId(), firstMessage.getInquiryMessageId());
 
         return new InquiryMessageResponseDto(inquiry.getInquiryId(), firstMessage.getInquiryMessageId());
     }
 
+    /**
+     * 문의방 안에서 문의 보내기
+     */
     public InquiryMessageResponseDto sendMessageInRoom(Long inquiryId, SendInquiryMessageRequestDto requestDto) {
         User sender = userService.getCurrentUser();
 
@@ -84,8 +233,20 @@ public class InquiryService {
         inquiryMessageRepository.save(message);
 
         inquiry.updateLastMessage(message.getInquiryMessageId());
+        inquiry.updateLastReadMessageId(sender.getUserId(), message.getInquiryMessageId());
 
         return new InquiryMessageResponseDto(inquiry.getInquiryId(), message.getInquiryMessageId());
+    }
+
+    private long countUnreadMessages(Long inquiryId, Long currentUserId, Long lastReadMessageId) {
+        if (lastReadMessageId == null) {
+            return inquiryMessageRepository.countByInquiry_InquiryIdAndSender_UserIdNot(inquiryId, currentUserId);
+        }
+        return inquiryMessageRepository.countByInquiry_InquiryIdAndInquiryMessageIdGreaterThanAndSender_UserIdNot(
+                inquiryId,
+                lastReadMessageId,
+                currentUserId
+        );
     }
 
     private String validateAndNormalizeMessage(String message) {
@@ -99,5 +260,12 @@ public class InquiryService {
             throw new CustomException(ErrorCode.INQUIRY_MESSAGE_TOO_LONG);
         }
         return normalized;
+    }
+
+    private int normalizeMessagePageSize(int size) {
+        if (size <= 0) {
+            return DEFAULT_MESSAGE_PAGE_SIZE;
+        }
+        return Math.min(size, MAX_MESSAGE_PAGE_SIZE);
     }
 }

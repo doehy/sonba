@@ -77,4 +77,21 @@ public class Inquiry extends BaseTimeEntity {
         this.lastMessageId = messageId;
         this.lastMessageAt = LocalDateTime.now();
     }
+
+    public Long getLastReadMessageIdOf(Long userId) {
+        if (requester.getUserId().equals(userId)) {
+            return requesterLastReadMessageId;
+        }
+        return targetLastReadMessageId;
+    }
+
+    public void updateLastReadMessageId(Long userId, Long messageId) {
+        if (requester.getUserId().equals(userId)) {
+            this.requesterLastReadMessageId = messageId;
+            return;
+        }
+        if (target.getUserId().equals(userId)) {
+            this.targetLastReadMessageId = messageId;
+        }
+    }
 }
