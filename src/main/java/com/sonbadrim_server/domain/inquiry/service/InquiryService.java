@@ -238,6 +238,17 @@ public class InquiryService {
         return new InquiryMessageResponseDto(inquiry.getInquiryId(), message.getInquiryMessageId());
     }
 
+    /**
+     * 문의방 나가기
+     */
+    public void leaveInquiry(Long inquiryId) {
+        User currentUser = userService.getCurrentUser();
+        Inquiry inquiry = inquiryRepository.findByInquiryIdAndParticipant(inquiryId, currentUser.getUserId())
+                .orElseThrow(() -> new CustomException(ErrorCode.INQUIRY_NOT_FOUND));
+
+        inquiry.leave(currentUser.getUserId());
+    }
+
     private long countUnreadMessages(Long inquiryId, Long currentUserId, Long lastReadMessageId) {
         if (lastReadMessageId == null) {
             return inquiryMessageRepository.countByInquiry_InquiryIdAndSender_UserIdNot(inquiryId, currentUserId);

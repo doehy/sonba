@@ -77,4 +77,11 @@ public class InquiryController {
         InquiryMessageResponseDto response = inquiryService.sendMessageInRoom(inquiryId, requestDto);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
+
+    @Operation(summary = "문의방 나가기", description = "문의방에서 나갑니다. 양쪽 모두 나가면 상태가 CLOSED로 전환됩니다.")
+    @PostMapping("/{inquiryId}/leave")
+    public ResponseEntity<?> leaveInquiry(@PathVariable Long inquiryId) {
+        inquiryService.leaveInquiry(inquiryId);
+        return ResponseEntity.ok(CommonResponse.success(null));
+    }
 }

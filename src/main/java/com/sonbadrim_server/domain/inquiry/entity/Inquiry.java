@@ -94,4 +94,19 @@ public class Inquiry extends BaseTimeEntity {
             this.targetLastReadMessageId = messageId;
         }
     }
+
+    public void leave(Long userId) {
+        if (requester.getUserId().equals(userId)) {
+            if (requesterLeftAt == null) {
+                requesterLeftAt = LocalDateTime.now();
+            }
+        } else if (target.getUserId().equals(userId)) {
+            if (targetLeftAt == null) {
+                targetLeftAt = LocalDateTime.now();
+            }
+        }
+        if (requesterLeftAt != null && targetLeftAt != null) {
+            inquiryStatus = InquiryStatus.CLOSED;
+        }
+    }
 }
