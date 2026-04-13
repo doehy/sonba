@@ -2,6 +2,8 @@ package com.sonbadrim_server.domain.block.service;
 
 import com.sonbadrim_server.domain.block.dto.request.BlockCreateRequestDto;
 import com.sonbadrim_server.domain.block.dto.response.BlockCreateResponseDto;
+import com.sonbadrim_server.domain.block.dto.response.BlockListItemResponseDto;
+import com.sonbadrim_server.domain.block.dto.response.BlockListResponseDto;
 import com.sonbadrim_server.domain.block.entity.Block;
 import com.sonbadrim_server.domain.block.repository.BlockRepository;
 import com.sonbadrim_server.domain.user.entity.User;
@@ -10,8 +12,12 @@ import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -47,5 +53,27 @@ public class BlockService {
     public void unblockUser(Long blockedUserId) {
         User blocker = userService.getCurrentUser();
         blockRepository.deleteByBlocker_UserIdAndBlocked_UserId(blocker.getUserId(), blockedUserId);
+    }
+
+    @Transactional(readOnly = true)
+    public BlockListResponseDto getMyBlockedUsers(int page, int size) {
+        User blocker = userService.getCurrentUser();
+        Page<Block> blockPage = blockRepository.findByBlocker_UserIdOrderByCreatedAtDesc(
+                blocker.getUserId(),
+                PageRequest.of(page, size)
+        );
+
+        List<BlockListItemResponseDto> items = blockPage.getContent().stream()
+                .map(block -> new BlockListItemResponseDto(
+                        block.getBlocked().getUserId(),
+                        block.getBlocked().getEngineer() != null
+                                ? block.getBlocked().getEngineer().getEngineerName()
+                                : block.getBlocked().getNickname(),
+                        block.getBlocked().getEngineer() != null ? block.getBlocked().getEngineer().getProfileImage() : null,
+                        block.getCreatedAt()
+                ))
+                .toList();
+
+        return new BlockListResponseDto(items, blockPage.hasNext());
     }
 }
