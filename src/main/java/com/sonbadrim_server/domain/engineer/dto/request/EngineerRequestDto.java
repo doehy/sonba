@@ -8,7 +8,7 @@ import java.util.List;
 
 @Getter
 @NoArgsConstructor
-public class EngineerCreateRequest {
+public class EngineerRequestDto {
 
     @NotEmpty(message = "시공분야는 최소 1개 이상 선택해야 합니다.")
     @Size(max = 5, message = "시공분야는 최대 5개까지 선택 가능합니다.")

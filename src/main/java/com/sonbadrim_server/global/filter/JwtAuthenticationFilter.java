@@ -64,16 +64,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 throw new CustomException(ErrorCode.USER_WITHDRAWN);
             }
 
-            if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                UsernamePasswordAuthenticationToken auth =
-                        new UsernamePasswordAuthenticationToken(
-                                user.getUserId(),
-                                null,
-                                Collections.emptyList()
-                        );
+            UsernamePasswordAuthenticationToken auth =
+                    new UsernamePasswordAuthenticationToken(
+                            user.getUserId(),   // 또는 CustomPrincipal
+                            null,
+                            Collections.emptyList()
+                    );
+            SecurityContextHolder.getContext().setAuthentication(auth);
 
-                SecurityContextHolder.getContext().setAuthentication(auth);
-            }
 
         } catch (JwtException | IllegalArgumentException e) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);

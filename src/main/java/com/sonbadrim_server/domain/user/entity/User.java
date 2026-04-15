@@ -111,4 +111,8 @@ public class User extends BaseTimeEntity {
         this.kakaoAccessToken = null;
     }
 
+    public void clearEngineer() {
+        this.engineer = null;
+    }
+
 }

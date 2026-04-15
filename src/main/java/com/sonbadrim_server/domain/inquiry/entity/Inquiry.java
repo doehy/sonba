@@ -64,4 +64,49 @@ public class Inquiry extends BaseTimeEntity {
 
     @OneToMany(mappedBy = "inquiry")
     private List<InquiryMessage> messages = new ArrayList<>();
+
+    public static Inquiry create(User requester, User target) {
+        Inquiry inquiry = new Inquiry();
+        inquiry.requester = requester;
+        inquiry.target = target;
+        inquiry.inquiryStatus = InquiryStatus.OPEN;
+        return inquiry;
+    }
+
+    public void updateLastMessage(Long messageId) {
+        this.lastMessageId = messageId;
+        this.lastMessageAt = LocalDateTime.now();
+    }
+
+    public Long getLastReadMessageIdOf(Long userId) {
+        if (requester.getUserId().equals(userId)) {
+            return requesterLastReadMessageId;
+        }
+        return targetLastReadMessageId;
+    }
+
+    public void updateLastReadMessageId(Long userId, Long messageId) {
+        if (requester.getUserId().equals(userId)) {
+            this.requesterLastReadMessageId = messageId;
+            return;
+        }
+        if (target.getUserId().equals(userId)) {
+            this.targetLastReadMessageId = messageId;
+        }
+    }
+
+    public void leave(Long userId) {
+        if (requester.getUserId().equals(userId)) {
+            if (requesterLeftAt == null) {
+                requesterLeftAt = LocalDateTime.now();
+            }
+        } else if (target.getUserId().equals(userId)) {
+            if (targetLeftAt == null) {
+                targetLeftAt = LocalDateTime.now();
+            }
+        }
+        if (requesterLeftAt != null && targetLeftAt != null) {
+            inquiryStatus = InquiryStatus.CLOSED;
+        }
+    }
 }
