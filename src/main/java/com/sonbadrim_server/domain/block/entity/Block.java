@@ -39,4 +39,11 @@ public class Block extends BaseTimeEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "blocked_user_id", nullable = false)
     private User blocked;
+
+    public static Block create(User blocker, User blocked) {
+        Block block = new Block();
+        block.blocker = blocker;
+        block.blocked = blocked;
+        return block;
+    }
 }
