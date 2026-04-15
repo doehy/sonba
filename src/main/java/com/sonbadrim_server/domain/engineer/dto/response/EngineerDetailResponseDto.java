@@ -11,6 +11,7 @@ public class EngineerDetailResponseDto {
 
     private Long engineerId;
     private String engineerName;
+    private String headline;
     private String profileImage;
     private String regionName;
     private List<String> categories;
@@ -25,6 +26,7 @@ public class EngineerDetailResponseDto {
         return EngineerDetailResponseDto.builder()
                 .engineerId(engineer.getEngineerId())
                 .engineerName(engineer.getEngineerName())
+                .headline(engineer.getHeadline())
                 .profileImage(engineer.getProfileImage())
                 .regionName(engineer.getRegion().getCity() + " " + engineer.getRegion().getDistrict())
                 .categories(

@@ -86,7 +86,8 @@ public class EngineerService {
                 trimToNull(request.getStoreAddress()),
                 request.getPhone().trim(),
                 request.getPhonePublic(),
-                request.getEngineerName().trim()
+                request.getEngineerName().trim(),
+                request.getHeadline().trim()
         );
         engineerRepository.save(engineer);
 
@@ -130,6 +131,7 @@ public class EngineerService {
 
         engineer.updateInfo(
                 request.getEngineerName().trim(),
+                request.getHeadline().trim(),
                 normalizePhone(request.getPhone()),
                 request.getPhonePublic(),
                 trimToNull(request.getProfileImage()),
@@ -158,7 +160,7 @@ public class EngineerService {
 
         return engineerPage.map(engineer -> EngineerSummaryResponseDto.builder()
                 .engineerId(engineer.getEngineerId())
-                .engineerName(engineer.getEngineerName())
+                .headline(engineer.getHeadline())
                 .profileImage(engineer.getProfileImage())
                 .regionName(buildRegionName(engineer))
                 .categories(categoryMap.getOrDefault(engineer.getEngineerId(), Collections.emptyList()))
@@ -290,4 +292,3 @@ public class EngineerService {
         return trimmed.substring(0, 100) + "...";
     }
 }
-

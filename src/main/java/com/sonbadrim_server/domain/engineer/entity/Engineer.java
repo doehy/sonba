@@ -61,6 +61,9 @@ public class Engineer extends BaseTimeEntity {
     @Column(name = "engineer_name", nullable = false, length = 20)
     private String engineerName;
 
+    @Column(name = "headline", nullable = false, length = 30)
+    private String headline;
+
     @OneToMany(mappedBy = "engineer")
     private List<Portfolio> portfolios = new ArrayList<>();
 
@@ -76,7 +79,8 @@ public class Engineer extends BaseTimeEntity {
             String storeAddress,
             String phone,
             boolean phonePublic,
-            String engineerName
+            String engineerName,
+            String headline
     ) {
         Engineer engineer = new Engineer();
         engineer.user = user;
@@ -88,11 +92,13 @@ public class Engineer extends BaseTimeEntity {
         engineer.phone = phone;
         engineer.phonePublic = phonePublic;
         engineer.engineerName = engineerName;
+        engineer.headline = headline;
         return engineer;
     }
 
     public void updateInfo(
             String engineerName,
+            String headline,
             String phone,
             Boolean phonePublic,
             String profileImage,
@@ -102,6 +108,7 @@ public class Engineer extends BaseTimeEntity {
             Region region
     ) {
         this.engineerName = engineerName;
+        this.headline = headline;
         this.phone = phone;
         this.phonePublic = phonePublic;
         this.profileImage = profileImage;
