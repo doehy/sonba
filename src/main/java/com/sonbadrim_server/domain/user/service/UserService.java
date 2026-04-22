@@ -85,8 +85,8 @@ public class UserService {
         if (existingUser.isPresent()) {
             User user = existingUser.get();
 
-            // 탈퇴한 사용자(INACTIVE)는 재로그인 금지
-            if (UserStatus.INACTIVE.equals(user.getStatus())) {
+            // 탈퇴한 사용자(WITHDRAWN)는 재로그인 금지
+            if (UserStatus.WITHDRAWN.equals(user.getStatus())) {
                 throw new CustomException(ErrorCode.USER_WITHDRAWN);
             }
 
@@ -203,7 +203,7 @@ public class UserService {
     }
 
     /**
-     * 회원 탈퇴 처리 - 사용자 상태를 INACTIVE로 변경하고 카카오 연결 해제
+     * 회원 탈퇴 처리 - 사용자 상태를 WITHDRAWN으로 변경하고 즉시 익명화 처리
      */
     public void withdrawUser() {
         User user = getCurrentUser();

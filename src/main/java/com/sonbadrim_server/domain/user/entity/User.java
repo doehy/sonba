@@ -20,6 +20,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import com.sonbadrim_server.global.BaseTimeEntity;
@@ -66,6 +67,9 @@ public class User extends BaseTimeEntity {
     @Column(name = "status", nullable = false, length = 20)
     private UserStatus status;
 
+    @Column(name = "withdrawn_at")
+    private LocalDateTime withdrawnAt;
+
     @OneToOne(mappedBy = "user")
     private Engineer engineer;
 
@@ -107,7 +111,18 @@ public class User extends BaseTimeEntity {
     }
 
     public void withdraw() {
-        this.status = UserStatus.INACTIVE;
+        if (this.userId == null) {
+            throw new IllegalStateException("Cannot withdraw user without id");
+        }
+        this.status = UserStatus.WITHDRAWN;
+        this.withdrawnAt = LocalDateTime.now();
+
+        // PII anonymization on withdrawal
+        this.nickname = "withdrawn";
+        this.birth = null;
+        this.gender = null;
+        this.region = null;
+        this.kakaoId = -Math.abs(this.userId);
         this.kakaoAccessToken = null;
     }
 
