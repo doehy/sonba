@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -55,6 +56,22 @@ public class NotificationSseService {
             }
         }
         return delivered;
+    }
+
+    @Scheduled(fixedDelay = 30_000)
+    public void sendHeartbeat() {
+        for (Map.Entry<Long, Map<String, SseEmitter>> userEntry : emitterStore.entrySet()) {
+            Long userId = userEntry.getKey();
+            Map<String, SseEmitter> userEmitters = userEntry.getValue();
+
+            for (Map.Entry<String, SseEmitter> emitterEntry : userEmitters.entrySet()) {
+                try {
+                    sendEvent(emitterEntry.getValue(), "heartbeat", "keepalive");
+                } catch (Exception e) {
+                    removeEmitter(userId, emitterEntry.getKey());
+                }
+            }
+        }
     }
 
     private void sendEvent(SseEmitter emitter, String eventName, Object data) {
