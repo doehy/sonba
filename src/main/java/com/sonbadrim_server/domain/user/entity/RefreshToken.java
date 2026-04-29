@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Index;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -17,7 +18,12 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "refresh_token")
+@Table(
+        name = "refresh_token",
+        indexes = {
+                @Index(name = "idx_refresh_token_user_id", columnList = "user_id")
+        }
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RefreshToken extends BaseTimeEntity {
 
