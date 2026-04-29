@@ -44,7 +44,6 @@ public class SecurityConfig {
             "/token",
             "/center",
             "/email/**",
-            "/sse/subscribe/**",    // SSE 구독 엔드포인트 허용
             "/kakao/**",
             "/auth/**",
     };

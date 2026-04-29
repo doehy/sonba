@@ -258,3 +258,5 @@ INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (10, 
 INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (11, '타일', true);
 INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (12, '페인트', true);
 
+INSERT IGNORE INTO notification_type (notification_type_id, type, template, created_at, modified_at)
+VALUES (1, 'INQUIRY', '%s님이 새 문의를 보냈습니다.', NOW(), NOW());

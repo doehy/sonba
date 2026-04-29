@@ -13,6 +13,7 @@ import com.sonbadrim_server.domain.inquiry.entity.Inquiry;
 import com.sonbadrim_server.domain.inquiry.entity.InquiryMessage;
 import com.sonbadrim_server.domain.inquiry.repository.InquiryMessageRepository;
 import com.sonbadrim_server.domain.inquiry.repository.InquiryRepository;
+import com.sonbadrim_server.domain.notification.service.NotificationService;
 import com.sonbadrim_server.domain.user.entity.User;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.domain.user.service.UserService;
@@ -46,6 +47,7 @@ public class InquiryService {
     private final UserRepository userRepository;
     private final UserService userService;
     private final EngineerRepository engineerRepository;
+    private final NotificationService notificationService;
     private static final int DEFAULT_MESSAGE_PAGE_SIZE = 15;
     private static final int MAX_MESSAGE_PAGE_SIZE = 50;
 
@@ -209,6 +211,7 @@ public class InquiryService {
 
         inquiry.updateLastMessage(firstMessage.getInquiryMessageId());
         inquiry.updateLastReadMessageId(requester.getUserId(), firstMessage.getInquiryMessageId());
+        notificationService.createInquiryNotification(targetUser.getUserId(), requester.getNickname());
 
         return new InquiryMessageResponseDto(inquiry.getInquiryId(), firstMessage.getInquiryMessageId());
     }
@@ -234,6 +237,10 @@ public class InquiryService {
 
         inquiry.updateLastMessage(message.getInquiryMessageId());
         inquiry.updateLastReadMessageId(sender.getUserId(), message.getInquiryMessageId());
+        User receiver = inquiry.getRequester().getUserId().equals(sender.getUserId())
+                ? inquiry.getTarget()
+                : inquiry.getRequester();
+        notificationService.createInquiryNotification(receiver.getUserId(), sender.getNickname());
 
         return new InquiryMessageResponseDto(inquiry.getInquiryId(), message.getInquiryMessageId());
     }

@@ -42,4 +42,22 @@ public class Notification extends BaseTimeEntity {
 
     @Column(name = "sse_sent", nullable = false)
     private boolean sseSent;
+
+    public static Notification create(User user, NotificationType notificationType, String content) {
+        Notification notification = new Notification();
+        notification.user = user;
+        notification.notificationType = notificationType;
+        notification.content = content;
+        notification.read = false;
+        notification.sseSent = false;
+        return notification;
+    }
+
+    public void markRead() {
+        this.read = true;
+    }
+
+    public void markSseSent() {
+        this.sseSent = true;
+    }
 }

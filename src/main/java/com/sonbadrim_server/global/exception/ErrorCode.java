@@ -46,6 +46,9 @@ public enum ErrorCode {
     INVALID_INQUIRY_REQUEST(400, "INQUIRY_400_1", "유효하지 않은 문의 요청입니다."),
     INQUIRY_MESSAGE_TOO_LONG(400, "INQUIRY_400_2", "문의 메시지는 500자 이하만 가능합니다."),
 
+    // Notification
+    NOTIFICATION_NOT_FOUND(404, "NOTIFICATION_404_1", "알림을 찾을 수 없습니다."),
+
     // Image
     INVALID_PROFILE_IMAGE(400, "IMAGE_400_1", "유효하지 않은 프로필 이미지입니다."),
     INVALID_PORTFOLIO_IMAGE(400, "IMAGE_400_2", "유효하지 않은 포트폴리오 이미지입니다."),
