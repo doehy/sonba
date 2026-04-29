@@ -56,6 +56,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .build()
                     .parseClaimsJws(token)
                     .getBody();
+
+            Object tokenType = claims.get("type");
+            if (!"access".equals(tokenType)) {
+                throw new CustomException(ErrorCode.UNAUTHORIZED);
+            }
+
             Long userId = Long.valueOf(claims.getSubject());
 
             User user = userRepository.findById(userId)
