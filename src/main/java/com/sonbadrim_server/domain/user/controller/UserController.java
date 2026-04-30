@@ -1,16 +1,21 @@
 package com.sonbadrim_server.domain.user.controller;
 
 import com.sonbadrim_server.domain.user.entity.User;
+import com.sonbadrim_server.domain.user.dto.request.UpdateUserProfileRequestDto;
+import com.sonbadrim_server.domain.user.dto.response.UserProfileResponseDto;
 import com.sonbadrim_server.domain.user.service.KakaoService;
 import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -42,6 +47,20 @@ public class UserController {
         );
 
         return ResponseEntity.ok(CommonResponse.success(userInfo));
+    }
+
+    @GetMapping("/profile")
+    @Operation(summary = "내 프로필 조회", description = "현재 로그인한 사용자의 프로필 정보를 조회합니다.")
+    public ResponseEntity<?> getMyProfile() {
+        UserProfileResponseDto response = userService.getMyProfile();
+        return ResponseEntity.ok(CommonResponse.success(response));
+    }
+
+    @PatchMapping("/profile")
+    @Operation(summary = "내 프로필 수정", description = "현재 로그인한 사용자의 프로필 정보를 수정합니다.")
+    public ResponseEntity<?> updateMyProfile(@Valid @RequestBody UpdateUserProfileRequestDto requestDto) {
+        userService.updateMyProfile(requestDto);
+        return ResponseEntity.ok(CommonResponse.success("프로필이 성공적으로 업데이트되었습니다."));
     }
 
     @PostMapping("/withdraw")

@@ -7,6 +7,8 @@ import com.sonbadrim_server.domain.user.entity.UserRole;
 import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.entity.RefreshToken;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
+import com.sonbadrim_server.domain.user.dto.request.UpdateUserProfileRequestDto;
+import com.sonbadrim_server.domain.user.dto.response.UserProfileResponseDto;
 import com.sonbadrim_server.domain.user.repository.RefreshTokenRepository;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.global.exception.CustomException;
@@ -247,6 +249,34 @@ public class UserService {
 
         // 회원가입 완료 처리
         user.completeSignup();
+    }
+
+    @Transactional(readOnly = true)
+    public UserProfileResponseDto getMyProfile() {
+        User user = getCurrentUser();
+        Region region = user.getRegion();
+
+        return new UserProfileResponseDto(
+                region != null ? region.getCity() : null,
+                region != null ? region.getDistrict() : null,
+                user.getNickname(),
+                user.getBirth(),
+                user.getGender(),
+                user.getEngineer() != null
+        );
+    }
+
+    public void updateMyProfile(UpdateUserProfileRequestDto requestDto) {
+        User user = getCurrentUser();
+        Region region = regionRepository.findById(requestDto.getRegionId())
+                .orElseThrow(() -> new CustomException(ErrorCode.REGION_NOT_FOUND));
+
+        user.updateSignupInfo(
+                region,
+                requestDto.getNickname(),
+                requestDto.getBirth(),
+                requestDto.getGender()
+        );
     }
 
     /**
