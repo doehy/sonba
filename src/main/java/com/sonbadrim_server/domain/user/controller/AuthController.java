@@ -4,8 +4,8 @@ package com.sonbadrim_server.domain.user.controller;
 import com.sonbadrim_server.domain.user.entity.User;
 import com.sonbadrim_server.domain.user.dto.request.RefreshTokenRequestDto;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
+import com.sonbadrim_server.domain.user.dto.response.AuthTokenResponse;
 import com.sonbadrim_server.domain.user.dto.response.LoginResponse;
-import com.sonbadrim_server.domain.user.dto.response.TokenRefreshResponse;
 import com.sonbadrim_server.domain.user.service.KakaoService;
 import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.common.CommonResponse;
@@ -69,7 +69,7 @@ public class AuthController {
             // 3. 사용자 정보 저장 또는 업데이트
             Map<String, Object> loginResult = userService.processKakaoLogin(kakaoUserInfo, kakaoAccessToken);
             User user = (User) loginResult.get("user");
-            boolean isNewUser = (boolean) loginResult.get("isNewUser");
+            boolean requiresSignup = (boolean) loginResult.get("isNewUser");
 
             // 4. JWT 토큰 생성 (Access + Refresh)
             Map<String, String> tokens = userService.generateTokenPair(user);
@@ -80,9 +80,8 @@ public class AuthController {
 
             // 6. 응답 데이터
             LoginResponse response = new LoginResponse(
-                    tokens.get("accessToken"),
-                    tokens.get("refreshToken"),
-                    isNewUser
+                    new AuthTokenResponse(tokens.get("accessToken"), tokens.get("refreshToken")),
+                    requiresSignup
             );
 
             return ResponseEntity.ok(CommonResponse.success(response));
@@ -104,10 +103,7 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(@Valid @RequestBody RefreshTokenRequestDto requestDto) {
         Map<String, String> tokens = userService.reissueTokenPair(requestDto.getRefreshToken());
-        TokenRefreshResponse response = new TokenRefreshResponse(
-                tokens.get("accessToken"),
-                tokens.get("refreshToken")
-        );
+        AuthTokenResponse response = new AuthTokenResponse(tokens.get("accessToken"), tokens.get("refreshToken"));
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 
