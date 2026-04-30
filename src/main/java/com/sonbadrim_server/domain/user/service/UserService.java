@@ -26,6 +26,9 @@ import org.springframework.security.core.Authentication;
 import javax.crypto.SecretKey;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 @Log4j2
@@ -210,7 +213,8 @@ public class UserService {
             throw new CustomException(ErrorCode.USER_WITHDRAWN);
         }
 
-        RefreshToken storedToken = refreshTokenRepository.findValidToken(userId, refreshToken, LocalDateTime.now())
+        String refreshTokenHash = hashRefreshToken(refreshToken);
+        RefreshToken storedToken = refreshTokenRepository.findValidToken(userId, refreshTokenHash, LocalDateTime.now())
                 .orElseThrow(() -> new CustomException(ErrorCode.UNAUTHORIZED));
         storedToken.revoke();
 
@@ -270,6 +274,22 @@ public class UserService {
     private void rotateRefreshToken(User user, String refreshToken) {
         refreshTokenRepository.revokeAllActiveByUserId(user.getUserId(), LocalDateTime.now());
         LocalDateTime expiresAt = LocalDateTime.now().plus(Duration.ofMillis(refreshTokenExpiration));
-        refreshTokenRepository.save(RefreshToken.issue(user, refreshToken, expiresAt));
+        String refreshTokenHash = hashRefreshToken(refreshToken);
+        refreshTokenRepository.save(RefreshToken.issue(user, refreshTokenHash, expiresAt));
+    }
+
+    private String hashRefreshToken(String refreshToken) {
+        try {
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashedBytes = digest.digest(refreshToken.getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder sb = new StringBuilder();
+            for (byte hashedByte : hashedBytes) {
+                sb.append(String.format("%02x", hashedByte));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
     }
 }
