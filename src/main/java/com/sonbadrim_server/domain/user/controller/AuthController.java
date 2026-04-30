@@ -11,6 +11,8 @@ import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.common.CommonResponse;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -29,6 +31,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
+@Tag(name = "Auth", description = "인증/인가 API")
 public class AuthController {
 
     private final KakaoService kakaoService;
@@ -46,6 +49,7 @@ public class AuthController {
      * 카카오 로그인 시작
      * 사용자를 카카오 인가 페이지로 리다이렉트
      */
+    @Operation(summary = "카카오 로그인 시작", description = "카카오 인가 페이지로 리다이렉트합니다.")
     @GetMapping("/kakao/login")
     public void redirectToKakaoLogin(HttpServletResponse response) throws IOException {
         String kakaoAuthUrl = "https://kauth.kakao.com/oauth/authorize"
@@ -57,6 +61,10 @@ public class AuthController {
     }
 
 
+    @Operation(
+            summary = "카카오 로그인 콜백",
+            description = "Access/Refresh 토큰을 발급하고, 회원가입 필요 여부(requiresSignup)를 반환합니다."
+    )
     @GetMapping("/kakao/callback")
     public ResponseEntity<?> kakaoLogin(@RequestParam String code) {
         try {
@@ -95,12 +103,14 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
+    @Operation(summary = "회원가입 완료", description = "GUEST 사용자의 추가 정보를 입력받아 회원가입을 완료합니다.")
     public ResponseEntity<?> signup(@Valid @RequestBody SignupRequestDto signupRequest) {
         userService.signup(signupRequest);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
     @PostMapping("/refresh")
+    @Operation(summary = "토큰 재발급", description = "Refresh 토큰으로 Access/Refresh 토큰을 재발급합니다(rotate 정책).")
     public ResponseEntity<?> refresh(@Valid @RequestBody RefreshTokenRequestDto requestDto) {
         Map<String, String> tokens = userService.reissueTokenPair(requestDto.getRefreshToken());
         AuthTokenResponse response = new AuthTokenResponse(tokens.get("accessToken"), tokens.get("refreshToken"));
@@ -108,6 +118,7 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @Operation(summary = "로그아웃", description = "현재 사용자의 세션을 종료하고 refresh 토큰을 폐기합니다.")
     public ResponseEntity<?> logout() {
         try {
             User currentUser = userService.getCurrentUser();
@@ -129,6 +140,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
+    @Operation(summary = "내 정보 조회", description = "현재 로그인한 사용자 정보를 조회합니다.")
     public ResponseEntity<?> getCurrentUser() {
         User currentUser = userService.getCurrentUser();
 
@@ -143,6 +155,7 @@ public class AuthController {
     }
 
     @PostMapping("/withdraw")
+    @Operation(summary = "회원 탈퇴", description = "현재 로그인한 사용자를 탈퇴 처리합니다.")
     public ResponseEntity<?> withdrawUser() {
         try {
             User currentUser = userService.getCurrentUser();
