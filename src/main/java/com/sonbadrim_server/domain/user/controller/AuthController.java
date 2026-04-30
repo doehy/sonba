@@ -43,8 +43,6 @@ public class AuthController {
     @Value("${kakao.redirect.uri}")
     private String redirectUri;
 
-    //private final RedisTemplate<String, Object> redisTemplate;
-
     /**
      * 카카오 로그인 시작
      * 사용자를 카카오 인가 페이지로 리다이렉트
@@ -135,42 +133,6 @@ public class AuthController {
         } catch (Exception e) {
             // 로그아웃 실패해도 200 반환 (클라이언트 토큰은 삭제되어야 함)
             log.warn("로그아웃 처리 중 오류: {}", e.getMessage());
-            return ResponseEntity.ok(CommonResponse.success(null));
-        }
-    }
-
-    @GetMapping("/me")
-    @Operation(summary = "내 정보 조회", description = "현재 로그인한 사용자 정보를 조회합니다.")
-    public ResponseEntity<?> getCurrentUser() {
-        User currentUser = userService.getCurrentUser();
-
-        Map<String, Object> userInfo = Map.of(
-                "userId", currentUser.getUserId(),
-                "kakaoId", currentUser.getKakaoId(),
-                "nickname", currentUser.getNickname(),
-                "status", currentUser.getStatus()
-        );
-
-        return ResponseEntity.ok(CommonResponse.success(userInfo));
-    }
-
-    @PostMapping("/withdraw")
-    @Operation(summary = "회원 탈퇴", description = "현재 로그인한 사용자를 탈퇴 처리합니다.")
-    public ResponseEntity<?> withdrawUser() {
-        try {
-            User currentUser = userService.getCurrentUser();
-
-            // 저장된 카카오 액세스 토큰으로 카카오 연결끊기 호출 (완전한 세션 정리)
-            if (currentUser.getKakaoAccessToken() != null) {
-                kakaoService.unlink(currentUser.getKakaoAccessToken());
-            }
-
-            userService.withdrawUser();
-
-            return ResponseEntity.ok(CommonResponse.success(null));
-        } catch (Exception e) {
-            // 카카오 연결 해제 실패해도 회원 탈퇴는 진행
-            userService.withdrawUser();
             return ResponseEntity.ok(CommonResponse.success(null));
         }
     }
