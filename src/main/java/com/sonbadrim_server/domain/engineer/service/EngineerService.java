@@ -8,8 +8,10 @@ import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseD
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
+import com.sonbadrim_server.domain.engineer.entity.InterestedEngineer;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
+import com.sonbadrim_server.domain.engineer.repository.InterestedEngineerRepository;
 import com.sonbadrim_server.domain.portfolio.entity.Portfolio;
 import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
 import com.sonbadrim_server.domain.region.entity.Region;
@@ -42,6 +44,7 @@ public class EngineerService {
     private final CategoryRepository categoryRepository;
     private final RegionRepository regionRepository;
     private final UserService userService;
+    private final InterestedEngineerRepository interestedEngineerRepository;
 
     /**
      * 기술자 등록하기
@@ -198,6 +201,34 @@ public class EngineerService {
         engineerCategoryRepository.deleteByEngineer(engineer);
         portfolioRepository.deleteByEngineer(engineer);
         engineerRepository.delete(engineer);
+    }
+
+    public void addInterestedEngineer(Long engineerId) {
+        User user = userService.getCurrentUser();
+        Engineer engineer = engineerRepository.findById(engineerId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+
+        boolean exists = interestedEngineerRepository.existsByUser_UserIdAndEngineer_EngineerId(
+                user.getUserId(),
+                engineerId
+        );
+        if (exists) {
+            return;
+        }
+
+        interestedEngineerRepository.save(InterestedEngineer.create(user, engineer));
+    }
+
+    public void removeInterestedEngineer(Long engineerId) {
+        User user = userService.getCurrentUser();
+        if (!engineerRepository.existsById(engineerId)) {
+            throw new CustomException(ErrorCode.ENGINEER_NOT_FOUND);
+        }
+
+        interestedEngineerRepository.deleteByUser_UserIdAndEngineer_EngineerId(
+                user.getUserId(),
+                engineerId
+        );
     }
 
     private void validateOwner(Engineer engineer, User currentUser) {
