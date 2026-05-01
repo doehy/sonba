@@ -8,6 +8,7 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class UserProfileResponseDto {
+    private Long userId;
     private String city;
     private String district;
     private String nickname;

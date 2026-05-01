@@ -257,6 +257,7 @@ public class UserService {
         Region region = user.getRegion();
 
         return new UserProfileResponseDto(
+                user.getUserId(),
                 region != null ? region.getCity() : null,
                 region != null ? region.getDistrict() : null,
                 user.getNickname(),
