@@ -5,11 +5,17 @@ import com.sonbadrim_server.domain.region.repository.RegionRepository;
 import com.sonbadrim_server.domain.user.entity.User;
 import com.sonbadrim_server.domain.user.entity.UserRole;
 import com.sonbadrim_server.domain.user.entity.UserStatus;
+import com.sonbadrim_server.domain.user.entity.RefreshToken;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
+import com.sonbadrim_server.domain.user.dto.request.UpdateUserProfileRequestDto;
+import com.sonbadrim_server.domain.user.dto.response.UserProfileResponseDto;
+import com.sonbadrim_server.domain.user.repository.RefreshTokenRepository;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -20,6 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
 
 import javax.crypto.SecretKey;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 @Log4j2
@@ -29,6 +40,7 @@ import java.util.*;
 public class UserService {
     private final UserRepository userRepository;
     private final RegionRepository regionRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -157,10 +169,58 @@ public class UserService {
      * 토큰 쌍 생성 (Access + Refresh)
      */
     public Map<String, String> generateTokenPair(User user) {
+        String accessToken = generateAccessToken(user);
+        String refreshToken = generateRefreshToken(user);
+
+        rotateRefreshToken(user, refreshToken);
+
         Map<String, String> tokens = new HashMap<>();
-        tokens.put("accessToken", generateAccessToken(user));
-        tokens.put("refreshToken", generateRefreshToken(user));
+        tokens.put("accessToken", accessToken);
+        tokens.put("refreshToken", refreshToken);
         return tokens;
+    }
+
+    public Map<String, String> reissueTokenPair(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        Claims claims;
+        try {
+            SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
+            claims = Jwts.parser()
+                    .setSigningKey(key)
+                    .build()
+                    .parseClaimsJws(refreshToken)
+                    .getBody();
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        Object tokenType = claims.get("type");
+        if (!"refresh".equals(tokenType)) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        Long userId;
+        try {
+            userId = Long.valueOf(claims.getSubject());
+        } catch (NumberFormatException e) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED);
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.UNAUTHORIZED));
+        if (UserStatus.WITHDRAWN.equals(user.getStatus())) {
+            throw new CustomException(ErrorCode.USER_WITHDRAWN);
+        }
+
+        String refreshTokenHash = hashRefreshToken(refreshToken);
+        RefreshToken storedToken = refreshTokenRepository.findValidToken(userId, refreshTokenHash, LocalDateTime.now())
+                .orElseThrow(() -> new CustomException(ErrorCode.UNAUTHORIZED));
+        storedToken.revoke();
+
+        return generateTokenPair(user);
     }
 
     /**
@@ -191,11 +251,41 @@ public class UserService {
         user.completeSignup();
     }
 
+    @Transactional(readOnly = true)
+    public UserProfileResponseDto getMyProfile() {
+        User user = getCurrentUser();
+        Region region = user.getRegion();
+
+        return new UserProfileResponseDto(
+                user.getUserId(),
+                region != null ? region.getCity() : null,
+                region != null ? region.getDistrict() : null,
+                user.getNickname(),
+                user.getBirth(),
+                user.getGender(),
+                user.getEngineer() != null
+        );
+    }
+
+    public void updateMyProfile(UpdateUserProfileRequestDto requestDto) {
+        User user = getCurrentUser();
+        Region region = regionRepository.findById(requestDto.getRegionId())
+                .orElseThrow(() -> new CustomException(ErrorCode.REGION_NOT_FOUND));
+
+        user.updateSignupInfo(
+                region,
+                requestDto.getNickname(),
+                requestDto.getBirth(),
+                requestDto.getGender()
+        );
+    }
+
     /**
-     * 로그아웃 처리 - 카카오 액세스 토큰 제거
+     * 로그아웃 처리 - 카카오 액세스 토큰 제거 및 refreshToken 제거
      */
     public void logoutUser() {
         User user = getCurrentUser();
+        refreshTokenRepository.revokeAllActiveByUserId(user.getUserId(), LocalDateTime.now());
         if (user.getKakaoAccessToken() != null) {
             user.clearKakaoAccessToken();
             userRepository.save(user);
@@ -207,7 +297,30 @@ public class UserService {
      */
     public void withdrawUser() {
         User user = getCurrentUser();
+        refreshTokenRepository.revokeAllActiveByUserId(user.getUserId(), LocalDateTime.now());
         user.withdraw();
         userRepository.save(user);
+    }
+
+    private void rotateRefreshToken(User user, String refreshToken) {
+        refreshTokenRepository.revokeAllActiveByUserId(user.getUserId(), LocalDateTime.now());
+        LocalDateTime expiresAt = LocalDateTime.now().plus(Duration.ofMillis(refreshTokenExpiration));
+        String refreshTokenHash = hashRefreshToken(refreshToken);
+        refreshTokenRepository.save(RefreshToken.issue(user, refreshTokenHash, expiresAt));
+    }
+
+    private String hashRefreshToken(String refreshToken) {
+        try {
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashedBytes = digest.digest(refreshToken.getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder sb = new StringBuilder();
+            for (byte hashedByte : hashedBytes) {
+                sb.append(String.format("%02x", hashedByte));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
     }
 }

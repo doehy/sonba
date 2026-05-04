@@ -25,11 +25,15 @@ import javax.crypto.SecretKey;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Set;
 
 @Log4j2
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    private static final Set<String> FILTER_SKIP_PATHS = Set.of(
+            "/auth/refresh"
+    );
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -56,6 +60,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .build()
                     .parseClaimsJws(token)
                     .getBody();
+
+            Object tokenType = claims.get("type");
+            if (!"access".equals(tokenType)) {
+                throw new CustomException(ErrorCode.UNAUTHORIZED);
+            }
+
             Long userId = Long.valueOf(claims.getSubject());
 
             User user = userRepository.findById(userId)
@@ -78,6 +88,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return FILTER_SKIP_PATHS.contains(request.getRequestURI());
     }
 
     private boolean isLogoutRequest(HttpServletRequest request) {
