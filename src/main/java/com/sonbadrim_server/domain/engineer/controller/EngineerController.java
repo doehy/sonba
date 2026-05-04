@@ -68,4 +68,18 @@ public class EngineerController {
 
     }
 
+    @Operation(summary = "관심 기술자 추가", description = "특정 기술자를 관심 목록(찜)에 추가합니다.")
+    @PostMapping("/{engineerId}/interest")
+    public ResponseEntity<?> addInterestedEngineer(@PathVariable Long engineerId) {
+        engineerService.addInterestedEngineer(engineerId);
+        return ResponseEntity.ok(CommonResponse.success("관심 기술자에 추가되었습니다."));
+    }
+
+    @Operation(summary = "관심 기술자 삭제", description = "특정 기술자를 관심 목록(찜)에서 삭제합니다.")
+    @DeleteMapping("/{engineerId}/interest")
+    public ResponseEntity<?> removeInterestedEngineer(@PathVariable Long engineerId) {
+        engineerService.removeInterestedEngineer(engineerId);
+        return ResponseEntity.ok(CommonResponse.success("관심 기술자에서 삭제되었습니다."));
+    }
+
 }
