@@ -48,6 +48,9 @@ public class AuthController {
     @Value("${jwt.refresh-expiration}")
     private long refreshTokenExpiration;
 
+    @Value("${app.cookie-secure:false}")
+    private boolean cookieSecure;
+
     /**
      * 카카오 로그인 시작
      * 사용자를 카카오 인가 페이지로 리다이렉트
@@ -148,10 +151,17 @@ public class AuthController {
         cookie.append("refreshToken=").append(refreshToken).append("; ");
         cookie.append("Max-Age=").append(Duration.ofMillis(refreshTokenExpiration).toSeconds()).append("; ");
         cookie.append("Path=/; HttpOnly; SameSite=Lax;");
+        if (cookieSecure) {
+            cookie.append(" Secure;");
+        }
         response.addHeader("Set-Cookie", cookie.toString());
     }
 
     private void clearRefreshTokenCookie(HttpServletResponse response) {
-        response.addHeader("Set-Cookie", "refreshToken=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax;");
+        StringBuilder cookie = new StringBuilder("refreshToken=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax;");
+        if (cookieSecure) {
+            cookie.append(" Secure;");
+        }
+        response.addHeader("Set-Cookie", cookie.toString());
     }
 }
