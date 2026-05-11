@@ -2,10 +2,8 @@ package com.sonbadrim_server.domain.user.controller;
 
 //import org.springframework.data.redis.core.RedisTemplate;
 import com.sonbadrim_server.domain.user.entity.User;
-import com.sonbadrim_server.domain.user.dto.request.RefreshTokenRequestDto;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
 import com.sonbadrim_server.domain.user.dto.response.AuthTokenResponse;
-import com.sonbadrim_server.domain.user.dto.response.LoginResponse;
 import com.sonbadrim_server.domain.user.service.KakaoService;
 import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.common.CommonResponse;
@@ -25,6 +23,7 @@ import jakarta.validation.Valid;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Map;
 
 @Log4j2
@@ -42,6 +41,12 @@ public class AuthController {
 
     @Value("${kakao.redirect.uri}")
     private String redirectUri;
+
+    @Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
+
+    @Value("${jwt.refresh-expiration}")
+    private long refreshTokenExpiration;
 
     /**
      * 카카오 로그인 시작
@@ -64,7 +69,7 @@ public class AuthController {
             description = "Access/Refresh 토큰을 발급하고, 회원가입 필요 여부(requiresSignup)를 반환합니다."
     )
     @GetMapping("/kakao/callback")
-    public ResponseEntity<?> kakaoLogin(@RequestParam String code) {
+    public void kakaoLogin(@RequestParam String code, HttpServletResponse response) throws IOException {
         try {
             // 1. 인증 코드로 카카오 액세스 토큰 받기
             String kakaoAccessToken = kakaoService.getAccessToken(code);
@@ -79,18 +84,13 @@ public class AuthController {
 
             // 4. JWT 토큰 생성 (Access + Refresh)
             Map<String, String> tokens = userService.generateTokenPair(user);
+            addRefreshTokenCookie(response, tokens.get("refreshToken"));
 
-            // 5. refreshToken Redis에 저장 (VITE_API_BASE_URL local 시, 주석)
-            // redisTemplate.opsForValue()
-            //         .set(user.getUserId().toString(), tokens.get("refreshToken"), Duration.ofMillis(REFRESH_TOKEN_EXPIRE_TIME));
+            String redirectPath = requiresSignup ? "/signup" : "/";
+            String redirectTarget = frontendUrl + redirectPath
+                    + "#accessToken=" + URLEncoder.encode(tokens.get("accessToken"), StandardCharsets.UTF_8);
 
-            // 6. 응답 데이터
-            LoginResponse response = new LoginResponse(
-                    new AuthTokenResponse(tokens.get("accessToken"), tokens.get("refreshToken")),
-                    requiresSignup
-            );
-
-            return ResponseEntity.ok(CommonResponse.success(response));
+            response.sendRedirect(redirectTarget);
         } catch (CustomException e) {
             // CustomException은 그대로 재던지기 (탈퇴한 사용자 403 에러 포함)
             throw e;
@@ -109,15 +109,19 @@ public class AuthController {
 
     @PostMapping("/refresh")
     @Operation(summary = "토큰 재발급", description = "Refresh 토큰으로 Access/Refresh 토큰을 재발급합니다(rotate 정책).")
-    public ResponseEntity<?> refresh(@Valid @RequestBody RefreshTokenRequestDto requestDto) {
-        Map<String, String> tokens = userService.reissueTokenPair(requestDto.getRefreshToken());
-        AuthTokenResponse response = new AuthTokenResponse(tokens.get("accessToken"), tokens.get("refreshToken"));
-        return ResponseEntity.ok(CommonResponse.success(response));
+    public ResponseEntity<?> refresh(
+            @CookieValue(value = "refreshToken", required = false) String refreshToken,
+            HttpServletResponse response
+    ) {
+        Map<String, String> tokens = userService.reissueTokenPair(refreshToken);
+        addRefreshTokenCookie(response, tokens.get("refreshToken"));
+        AuthTokenResponse body = new AuthTokenResponse(tokens.get("accessToken"), null);
+        return ResponseEntity.ok(CommonResponse.success(body));
     }
 
     @PostMapping("/logout")
     @Operation(summary = "로그아웃", description = "현재 사용자의 세션을 종료하고 refresh 토큰을 폐기합니다.")
-    public ResponseEntity<?> logout() {
+    public ResponseEntity<?> logout(HttpServletResponse response) {
         try {
             User currentUser = userService.getCurrentUser();
 
@@ -128,12 +132,26 @@ public class AuthController {
 
             // 사용자의 카카오 토큰 제거
             userService.logoutUser();
+            clearRefreshTokenCookie(response);
 
             return ResponseEntity.ok(CommonResponse.success(null));
         } catch (Exception e) {
             // 로그아웃 실패해도 200 반환 (클라이언트 토큰은 삭제되어야 함)
             log.warn("로그아웃 처리 중 오류: {}", e.getMessage());
+            clearRefreshTokenCookie(response);
             return ResponseEntity.ok(CommonResponse.success(null));
         }
+    }
+
+    private void addRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
+        StringBuilder cookie = new StringBuilder();
+        cookie.append("refreshToken=").append(refreshToken).append("; ");
+        cookie.append("Max-Age=").append(Duration.ofMillis(refreshTokenExpiration).toSeconds()).append("; ");
+        cookie.append("Path=/; HttpOnly; SameSite=Lax;");
+        response.addHeader("Set-Cookie", cookie.toString());
+    }
+
+    private void clearRefreshTokenCookie(HttpServletResponse response) {
+        response.addHeader("Set-Cookie", "refreshToken=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax;");
     }
 }
