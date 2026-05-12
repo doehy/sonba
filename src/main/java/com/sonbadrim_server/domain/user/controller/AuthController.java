@@ -11,6 +11,7 @@ import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -47,6 +49,9 @@ public class AuthController {
 
     @Value("${jwt.refresh-expiration}")
     private long refreshTokenExpiration;
+
+    @Value("${app.cookie-secure:false}")
+    private boolean cookieSecure;
 
     /**
      * 카카오 로그인 시작
@@ -111,8 +116,10 @@ public class AuthController {
     @Operation(summary = "토큰 재발급", description = "Refresh 토큰으로 Access/Refresh 토큰을 재발급합니다(rotate 정책).")
     public ResponseEntity<?> refresh(
             @CookieValue(value = "refreshToken", required = false) String refreshToken,
+            HttpServletRequest request,
             HttpServletResponse response
     ) {
+        validateRefreshOrigin(request);
         Map<String, String> tokens = userService.reissueTokenPair(refreshToken);
         addRefreshTokenCookie(response, tokens.get("refreshToken"));
         AuthTokenResponse body = new AuthTokenResponse(tokens.get("accessToken"), null);
@@ -148,10 +155,66 @@ public class AuthController {
         cookie.append("refreshToken=").append(refreshToken).append("; ");
         cookie.append("Max-Age=").append(Duration.ofMillis(refreshTokenExpiration).toSeconds()).append("; ");
         cookie.append("Path=/; HttpOnly; SameSite=Lax;");
+        if (cookieSecure) {
+            cookie.append(" Secure;");
+        }
         response.addHeader("Set-Cookie", cookie.toString());
     }
 
     private void clearRefreshTokenCookie(HttpServletResponse response) {
-        response.addHeader("Set-Cookie", "refreshToken=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax;");
+        StringBuilder cookie = new StringBuilder("refreshToken=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax;");
+        if (cookieSecure) {
+            cookie.append(" Secure;");
+        }
+        response.addHeader("Set-Cookie", cookie.toString());
+    }
+
+    private void validateRefreshOrigin(HttpServletRequest request) {
+        String expectedOrigin = normalizeOrigin(frontendUrl);
+        String origin = request.getHeader("Origin");
+        if (origin != null && !origin.isBlank()) {
+            if (!expectedOrigin.equals(normalizeOrigin(origin))) {
+                throw new CustomException(ErrorCode.FORBIDDEN);
+            }
+            return;
+        }
+
+        String referer = request.getHeader("Referer");
+        if (referer != null && !referer.isBlank()) {
+            String refererOrigin = extractOrigin(referer);
+            if (expectedOrigin.equals(normalizeOrigin(refererOrigin))) {
+                return;
+            }
+        }
+
+        throw new CustomException(ErrorCode.FORBIDDEN);
+    }
+
+    private String normalizeOrigin(String origin) {
+        if (origin == null) {
+            return "";
+        }
+        return origin.endsWith("/") ? origin.substring(0, origin.length() - 1) : origin;
+    }
+
+    private String extractOrigin(String url) {
+        try {
+            URI uri = URI.create(url);
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            int port = uri.getPort();
+
+            if (scheme == null || host == null) {
+                return "";
+            }
+
+            if (port == -1) {
+                return scheme + "://" + host;
+            }
+
+            return scheme + "://" + host + ":" + port;
+        } catch (IllegalArgumentException e) {
+            return "";
+        }
     }
 }
