@@ -232,7 +232,7 @@ public class UserService {
 
         // 이미 회원가입 완료된 사용자면 예외 처리
         if (!UserStatus.GUEST.equals(user.getStatus())) {
-            throw new CustomException(ErrorCode.ALREADY_SIGNED_UP_USER);
+            throw new CustomException(ErrorCode.SIGNUP_FORBIDDEN);
         }
 
         // 지역 조회
