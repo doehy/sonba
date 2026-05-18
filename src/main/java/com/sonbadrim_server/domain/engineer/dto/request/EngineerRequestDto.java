@@ -48,6 +48,6 @@ public class EngineerRequestDto {
     private String engineerName;
 
     @NotBlank(message = "짧은 소개는 필수입니다.")
-    @Size(max = 30, message = "짧은 소개는 30자 이하로 입력해주세요.")
+    @Size(max = 50, message = "짧은 소개는 50자 이하로 입력해주세요.")
     private String headline;
 }
