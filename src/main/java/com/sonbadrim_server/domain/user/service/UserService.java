@@ -152,12 +152,14 @@ public class UserService {
     public String generateRefreshToken(User user) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + refreshTokenExpiration);
+        String tokenId = UUID.randomUUID().toString();
 
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
 
         return Jwts.builder()
                 .subject(user.getUserId().toString())
                 .claim("type", "refresh")
+                .id(tokenId)
                 .issuedAt(now)
 
                 .expiration(expiryDate)
