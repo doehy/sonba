@@ -25,7 +25,7 @@ public class ImageController {
 
     @Operation(
             summary = "Presigned URL 생성",
-            description = "R2에 기술자 이미지 업로드를 위한 Presigned URL을 생성합니다. imageFolderType: ENGINEER_PROFILE | ENGINEER_PORTFOLIO"
+            description = "R2 업로드용 Presigned URL을 생성합니다. imageFolderType: ENGINEER | REVIEW | INQUIRY"
     )
     @PostMapping("/{imageFolderType}/presigned-url")
     public ResponseEntity<CommonResponse<PresignedUrlResponseDto>> generatePresignedUrl(

@@ -21,7 +21,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ImageService {
 
-    private static final long MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+    private static final long MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
     private final S3Presigner s3Presigner;
 

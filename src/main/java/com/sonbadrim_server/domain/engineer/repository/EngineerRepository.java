@@ -116,4 +116,12 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long> {
             order by e.headline asc
             """)
     List<String> findHeadlineSuggestions(String keyword, Pageable pageable);
+
+    @Query("""
+            select e.profileImage
+            from Engineer e
+            where e.profileImage is not null
+              and e.profileImage <> ''
+            """)
+    List<String> findAllUsedProfileImageUrls();
 }

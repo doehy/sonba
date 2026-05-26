@@ -19,6 +19,6 @@ public class PresignedUrlRequestDto {
 
     @NotNull(message = "이미지 크기는 필수입니다.")
     @Min(value = 1, message = "이미지 크기는 1바이트 이상이어야 합니다.")
-    @Max(value = 5242880, message = "이미지 크기는 5MB 이하여야 합니다.")
+    @Max(value = 10485760, message = "이미지 크기는 10MB 이하여야 합니다.")
     private Long imageSize;
 }
