@@ -8,6 +8,7 @@ import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.entity.RefreshToken;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
 import com.sonbadrim_server.domain.user.dto.request.UpdateUserProfileRequestDto;
+import com.sonbadrim_server.domain.user.dto.response.EngineerRegistrationStatusResponseDto;
 import com.sonbadrim_server.domain.user.dto.response.UserProfileResponseDto;
 import com.sonbadrim_server.domain.user.repository.RefreshTokenRepository;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
@@ -267,6 +268,14 @@ public class UserService {
                 user.getGender(),
                 user.getEngineer() != null
         );
+    }
+
+    @Transactional(readOnly = true)
+    public EngineerRegistrationStatusResponseDto getEngineerRegistrationStatus() {
+        User user = getCurrentUser();
+        boolean engineerRegistered = user.getEngineer() != null;
+        Long engineerId = engineerRegistered ? user.getEngineer().getEngineerId() : null;
+        return new EngineerRegistrationStatusResponseDto(engineerRegistered, engineerId);
     }
 
     public void updateMyProfile(UpdateUserProfileRequestDto requestDto) {

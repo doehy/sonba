@@ -1,6 +1,7 @@
 package com.sonbadrim_server.domain.user.controller;
 
 import com.sonbadrim_server.domain.user.entity.User;
+import com.sonbadrim_server.domain.user.dto.response.EngineerRegistrationStatusResponseDto;
 import com.sonbadrim_server.domain.user.dto.request.UpdateUserProfileRequestDto;
 import com.sonbadrim_server.domain.user.dto.response.UserProfileResponseDto;
 import com.sonbadrim_server.domain.user.service.KakaoService;
@@ -54,6 +55,13 @@ public class UserController {
     @Operation(summary = "내 프로필 조회", description = "현재 로그인한 사용자의 프로필 정보를 조회합니다.")
     public ResponseEntity<?> getMyProfile() {
         UserProfileResponseDto response = userService.getMyProfile();
+        return ResponseEntity.ok(CommonResponse.success(response));
+    }
+
+    @GetMapping("/engineer-registration")
+    @Operation(summary = "기술자 등록 여부 조회", description = "현재 로그인한 사용자의 기술자 등록 여부만 조회합니다.")
+    public ResponseEntity<?> getEngineerRegistrationStatus() {
+        EngineerRegistrationStatusResponseDto response = userService.getEngineerRegistrationStatus();
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 
