@@ -41,15 +41,19 @@ public class SearchService {
     public SearchEngineerListResponseDto searchEngineers(
             String keyword,
             List<Integer> categoryIds,
+            String city,
             Integer regionId,
             Pageable pageable
     ) {
         String normalizedKeyword = normalizeKeyword(keyword);
+        String normalizedCity = normalizeKeyword(city);
         List<Integer> normalizedCategoryIds = normalizeList(categoryIds);
+        String cityFilter = regionId != null ? null : normalizedCity;
 
         Page<Engineer> engineerPage = engineerRepository.searchEngineers(
                 normalizedKeyword,
                 normalizedCategoryIds,
+                cityFilter,
                 regionId,
                 pageable
         );
@@ -61,9 +65,8 @@ public class SearchService {
         List<EngineerSummaryResponseDto> items = engineerPage.getContent().stream()
                 .map(engineer -> EngineerSummaryResponseDto.builder()
                 .engineerId(engineer.getEngineerId())
-                .headline(engineer.getHeadline())
+                .engineerName(engineer.getEngineerName())
                 .profileImage(engineer.getProfileImage())
-                .regionName(engineer.getRegion().getCity() + " " + engineer.getRegion().getDistrict())
                 .categories(categoryMap.getOrDefault(engineer.getEngineerId(), Collections.emptyList()))
                 .introduction(truncateIntroduction(engineer.getIntroduction()))
                 .build()
@@ -97,9 +100,8 @@ public class SearchService {
         List<EngineerSummaryResponseDto> items = engineerSlice.getContent().stream()
                 .map(engineer -> EngineerSummaryResponseDto.builder()
                         .engineerId(engineer.getEngineerId())
-                        .headline(engineer.getHeadline())
+                        .engineerName(engineer.getEngineerName())
                         .profileImage(engineer.getProfileImage())
-                        .regionName(engineer.getRegion().getCity() + " " + engineer.getRegion().getDistrict())
                         .categories(categoryMap.getOrDefault(engineer.getEngineerId(), Collections.emptyList()))
                         .introduction(truncateIntroduction(engineer.getIntroduction()))
                         .build()

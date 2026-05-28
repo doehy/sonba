@@ -42,6 +42,7 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long> {
                     or lower(e.engineerName) like lower(concat('%', :keyword, '%'))
                     or lower(e.headline) like lower(concat('%', :keyword, '%'))
             )
+            and (:city is null or r.city = :city)
             and (:regionId is null or r.regionId = :regionId)
             and (:categoryIds is null or c.categoryId in :categoryIds)
             """,
@@ -56,6 +57,7 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long> {
                     or lower(e.engineerName) like lower(concat('%', :keyword, '%'))
                     or lower(e.headline) like lower(concat('%', :keyword, '%'))
             )
+            and (:city is null or r.city = :city)
             and (:regionId is null or r.regionId = :regionId)
             and (:categoryIds is null or c.categoryId in :categoryIds)
             """
@@ -63,6 +65,7 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long> {
     Page<Engineer> searchEngineers(
             String keyword,
             List<Integer> categoryIds,
+            String city,
             Integer regionId,
             Pageable pageable
     );

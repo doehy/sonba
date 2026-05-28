@@ -38,6 +38,7 @@ public class SearchController {
             @RequestParam(required = false) String keyword,
             @Size(max = 5, message = "카테고리는 최대 5개까지 선택 가능합니다.")
             @RequestParam(required = false) List<Integer> categoryIds,
+            @RequestParam(required = false) String city,
             @RequestParam(required = false) Integer regionId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
@@ -46,6 +47,7 @@ public class SearchController {
         SearchEngineerListResponseDto response = searchService.searchEngineers(
                 keyword,
                 categoryIds,
+                city,
                 regionId,
                 pageable
         );

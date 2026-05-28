@@ -9,9 +9,8 @@ import lombok.Getter;
 public class EngineerSummaryResponseDto {
 
     private Long engineerId;
-    private String headline;
+    private String engineerName;
     private String profileImage;
-    private String regionName;
     private List<String> categories;
     private String introduction;
 }

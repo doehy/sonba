@@ -163,9 +163,8 @@ public class EngineerService {
 
         return engineerPage.map(engineer -> EngineerSummaryResponseDto.builder()
                 .engineerId(engineer.getEngineerId())
-                .headline(engineer.getHeadline())
+                .engineerName(engineer.getEngineerName())
                 .profileImage(engineer.getProfileImage())
-                .regionName(buildRegionName(engineer))
                 .categories(categoryMap.getOrDefault(engineer.getEngineerId(), Collections.emptyList()))
                 .introduction(truncateIntroduction(engineer.getIntroduction()))
                 .build()
@@ -304,10 +303,6 @@ public class EngineerService {
                                 Collectors.toList()
                         )
                 ));
-    }
-
-    private String buildRegionName(Engineer engineer) {
-        return engineer.getRegion().getCity() + " " + engineer.getRegion().getDistrict();
     }
 
     private String truncateIntroduction(String introduction) {
