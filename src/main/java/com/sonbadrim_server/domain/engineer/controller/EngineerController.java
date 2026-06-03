@@ -42,7 +42,7 @@ public class EngineerController {
     }
 
     @Operation(summary = "기술자 목록 조회", description = "기술자 목록을 페이지 단위로 조회합니다.")
-    @GetMapping("/engineers")
+    @GetMapping
     public ResponseEntity<?> getEngineerList(
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size
