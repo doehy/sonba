@@ -10,6 +10,7 @@ import lombok.Getter;
 public class EngineerDetailResponseDto {
 
     private Long engineerId;
+    private Long userId;
     private String engineerName;
     private String headline;
     private String profileImage;
@@ -25,6 +26,7 @@ public class EngineerDetailResponseDto {
     public static EngineerDetailResponseDto from(Engineer engineer, List<String> portfolioImages) {
         return EngineerDetailResponseDto.builder()
                 .engineerId(engineer.getEngineerId())
+                .userId(engineer.getUser().getUserId())
                 .engineerName(engineer.getEngineerName())
                 .headline(engineer.getHeadline())
                 .profileImage(engineer.getProfileImage())
