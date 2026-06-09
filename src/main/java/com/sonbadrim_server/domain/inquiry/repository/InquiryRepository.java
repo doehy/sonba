@@ -14,7 +14,14 @@ public interface InquiryRepository extends JpaRepository<Inquiry, Long> {
     Optional<Inquiry> findByRequester_UserIdAndTarget_UserId(Long requesterUserId, Long targetUserId);
 
     @EntityGraph(attributePaths = {"requester", "target", "requester.engineer", "target.engineer"})
-    Page<Inquiry> findByRequester_UserIdOrTarget_UserIdOrderByLastMessageAtDesc(Long requesterUserId, Long targetUserId, Pageable pageable);
+    @Query("""
+            select i
+            from Inquiry i
+            where (i.requester.userId = :userId and i.requesterLeftAt is null)
+               or (i.target.userId = :userId and i.targetLeftAt is null)
+            order by i.lastMessageAt desc
+            """)
+    Page<Inquiry> findVisibleByUserId(Long userId, Pageable pageable);
 
     @Query("""
             select i from Inquiry i

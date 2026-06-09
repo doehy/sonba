@@ -58,12 +58,8 @@ public class InquiryService {
     public InquiryListResponseDto getInquiries(int page, int size) {
         User currentUser = userService.getCurrentUser(); // 현재 사용자가 누구인지
 
-        Page<Inquiry> inquiryPage = inquiryRepository // 내가 참여한 방은 다 가져와라
-                .findByRequester_UserIdOrTarget_UserIdOrderByLastMessageAtDesc(
-                        currentUser.getUserId(),
-                        currentUser.getUserId(),
-                        PageRequest.of(page, size)
-                );
+        Page<Inquiry> inquiryPage = inquiryRepository
+                .findVisibleByUserId(currentUser.getUserId(), PageRequest.of(page, size));
         //마지막 메시지 id를 다 가져와라
         Set<Long> lastMessageIds = inquiryPage.getContent().stream()
                 .map(Inquiry::getLastMessageId)
@@ -155,12 +151,7 @@ public class InquiryService {
         pageMessages.sort(Comparator.comparing(InquiryMessage::getInquiryMessageId));
 
         List<InquiryDetailMessageResponseDto> items = pageMessages.stream()
-                .map(message -> new InquiryDetailMessageResponseDto(
-                        message.getInquiryMessageId(),
-                        message.getSender().getUserId(),
-                        message.getContent(),
-                        message.getCreatedAt()
-                ))
+                .map(this::toDetailMessageResponse)
                 .toList();
 
         if (!pageMessages.isEmpty()) {
@@ -219,7 +210,7 @@ public class InquiryService {
     /**
      * 문의방 안에서 문의 보내기
      */
-    public InquiryMessageResponseDto sendMessageInRoom(Long inquiryId, SendInquiryMessageRequestDto requestDto) {
+    public InquiryDetailMessageResponseDto sendMessageInRoom(Long inquiryId, SendInquiryMessageRequestDto requestDto) {
         User sender = userService.getCurrentUser();
 
         Inquiry inquiry = inquiryRepository.findById(inquiryId)
@@ -242,7 +233,7 @@ public class InquiryService {
                 : inquiry.getRequester();
         notificationService.createInquiryNotification(receiver.getUserId(), sender.getNickname());
 
-        return new InquiryMessageResponseDto(inquiry.getInquiryId(), message.getInquiryMessageId());
+        return toDetailMessageResponse(message);
     }
 
     /**
@@ -285,5 +276,14 @@ public class InquiryService {
             return DEFAULT_MESSAGE_PAGE_SIZE;
         }
         return Math.min(size, MAX_MESSAGE_PAGE_SIZE);
+    }
+
+    private InquiryDetailMessageResponseDto toDetailMessageResponse(InquiryMessage message) {
+        return new InquiryDetailMessageResponseDto(
+                message.getInquiryMessageId(),
+                message.getSender().getUserId(),
+                message.getContent(),
+                message.getCreatedAt()
+        );
     }
 }

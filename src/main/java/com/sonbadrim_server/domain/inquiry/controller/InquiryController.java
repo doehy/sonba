@@ -2,6 +2,7 @@ package com.sonbadrim_server.domain.inquiry.controller;
 
 import com.sonbadrim_server.domain.inquiry.dto.request.CreateInquiryRequestDto;
 import com.sonbadrim_server.domain.inquiry.dto.request.SendInquiryMessageRequestDto;
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryDetailMessageResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryDetailResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryListResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryMessagePageResponseDto;
@@ -74,7 +75,7 @@ public class InquiryController {
             @PathVariable Long inquiryId,
             @Valid @RequestBody SendInquiryMessageRequestDto requestDto
     ) {
-        InquiryMessageResponseDto response = inquiryService.sendMessageInRoom(inquiryId, requestDto);
+        InquiryDetailMessageResponseDto response = inquiryService.sendMessageInRoom(inquiryId, requestDto);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 
