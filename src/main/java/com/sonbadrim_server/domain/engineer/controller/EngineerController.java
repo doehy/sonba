@@ -4,6 +4,7 @@ import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
+import com.sonbadrim_server.domain.engineer.dto.response.InterestedEngineerItemResponseDto;
 import com.sonbadrim_server.domain.engineer.service.EngineerService;
 import com.sonbadrim_server.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -49,6 +50,18 @@ public class EngineerController {
     ) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<EngineerSummaryResponseDto> engineerList = engineerService.getEngineerList(pageable);
+
+        return ResponseEntity.ok(CommonResponse.success(engineerList));
+    }
+
+    @Operation(summary = "관심 기술자 목록 조회", description = "현재 로그인 사용자가 관심 목록에 추가한 기술자를 페이지 단위로 조회합니다.")
+    @GetMapping("/interests")
+    public ResponseEntity<?> getInterestedEngineers(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size
+    ) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<InterestedEngineerItemResponseDto> engineerList = engineerService.getInterestedEngineers(pageable);
 
         return ResponseEntity.ok(CommonResponse.success(engineerList));
     }

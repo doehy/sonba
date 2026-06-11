@@ -21,9 +21,10 @@ public class EngineerDetailResponseDto {
     private String storeAddress;
     private String phone;
     private boolean phonePublic;
+    private boolean interested;
     private List<String> portfolioImages;
 
-    public static EngineerDetailResponseDto from(Engineer engineer, List<String> portfolioImages) {
+    public static EngineerDetailResponseDto from(Engineer engineer, List<String> portfolioImages, boolean interested) {
         return EngineerDetailResponseDto.builder()
                 .engineerId(engineer.getEngineerId())
                 .userId(engineer.getUser().getUserId())
@@ -42,6 +43,7 @@ public class EngineerDetailResponseDto {
                 .storeAddress(engineer.getStoreAddress())
                 .phone(engineer.getPhone())
                 .phonePublic(engineer.isPhonePublic())
+                .interested(interested)
                 .portfolioImages(portfolioImages)
                 .build();
     }

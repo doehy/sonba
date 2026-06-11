@@ -6,6 +6,7 @@ import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
+import com.sonbadrim_server.domain.engineer.dto.response.InterestedEngineerItemResponseDto;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
 import com.sonbadrim_server.domain.engineer.entity.InterestedEngineer;
@@ -24,6 +25,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -172,6 +176,20 @@ public class EngineerService {
     }
 
     /**
+     * 현재 사용자의 관심 기술자 목록을 조회한다.
+     */
+    @Transactional(readOnly = true)
+    public Page<InterestedEngineerItemResponseDto> getInterestedEngineers(Pageable pageable) {
+        User currentUser = userService.getCurrentUser();
+        Page<InterestedEngineer> interestedEngineerPage =
+                interestedEngineerRepository.findByUser_UserIdOrderByCreatedAtDesc(currentUser.getUserId(), pageable);
+
+        return interestedEngineerPage.map(interestedEngineer ->
+                InterestedEngineerItemResponseDto.from(interestedEngineer.getEngineer())
+        );
+    }
+
+    /**
      * 기술자 상세 조회
      * @return EngineerDetailResponseDto
      */
@@ -182,7 +200,11 @@ public class EngineerService {
                 .map(Portfolio::getPortfolioImage)
                 .toList();
 
-        return EngineerDetailResponseDto.from(engineer, portfolioImages);
+        Long currentUserId = getCurrentUserIdOrNull();
+        boolean interested = currentUserId != null
+                && interestedEngineerRepository.existsByUser_UserIdAndEngineer_EngineerId(currentUserId, engineerId);
+
+        return EngineerDetailResponseDto.from(engineer, portfolioImages, interested);
     }
 
     /**
@@ -206,6 +228,10 @@ public class EngineerService {
         User user = userService.getCurrentUser();
         Engineer engineer = engineerRepository.findById(engineerId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+
+        if (engineer.getUser().getUserId().equals(user.getUserId())) {
+            throw new CustomException(ErrorCode.CANNOT_INTEREST_OWN_ENGINEER);
+        }
 
         boolean exists = interestedEngineerRepository.existsByUser_UserIdAndEngineer_EngineerId(
                 user.getUserId(),
@@ -316,5 +342,20 @@ public class EngineerService {
         }
 
         return trimmed.substring(0, 100) + "...";
+    }
+
+    private Long getCurrentUserIdOrNull() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            return null;
+        }
+
+        try {
+            return Long.valueOf(authentication.getName());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }
