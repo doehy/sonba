@@ -102,6 +102,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(AUTH_WHITELIST).permitAll()
                         .requestMatchers(HttpMethod.GET, "/regions").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/engineers/interests").authenticated()
                         .requestMatchers(HttpMethod.GET, "/engineers").permitAll()
                         .requestMatchers(HttpMethod.GET, "/engineers/{engineerId}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/search/engineers").permitAll()
