@@ -5,6 +5,7 @@ import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.InterestedEngineerItemResponseDto;
+import com.sonbadrim_server.domain.engineer.dto.response.PhoneDuplicateCheckResponseDto;
 import com.sonbadrim_server.domain.engineer.service.EngineerService;
 import com.sonbadrim_server.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -64,6 +65,13 @@ public class EngineerController {
         Page<InterestedEngineerItemResponseDto> engineerList = engineerService.getInterestedEngineers(pageable);
 
         return ResponseEntity.ok(CommonResponse.success(engineerList));
+    }
+
+    @Operation(summary = "기술자 전화번호 중복 확인", description = "기술자 등록/수정 전에 전화번호가 이미 사용 중인지 확인합니다.")
+    @GetMapping("/phone/check")
+    public ResponseEntity<?> checkPhoneDuplicate(@RequestParam String phone) {
+        PhoneDuplicateCheckResponseDto response = engineerService.checkPhoneDuplicate(phone);
+        return ResponseEntity.ok(CommonResponse.success(response));
     }
 
     @Operation(summary = "기술자 상세 조회", description = "기술자 상세 정보를 조회합니다.")

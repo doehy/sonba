@@ -15,6 +15,8 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long> {
 
     boolean existsByUser_UserId(Long userId);
 
+    boolean existsByPhone(String phone);
+
     @EntityGraph(attributePaths = {"region"})
     Page<Engineer> findAll(Pageable pageable);
 

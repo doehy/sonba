@@ -7,6 +7,7 @@ import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.InterestedEngineerItemResponseDto;
+import com.sonbadrim_server.domain.engineer.dto.response.PhoneDuplicateCheckResponseDto;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
 import com.sonbadrim_server.domain.engineer.entity.InterestedEngineer;
@@ -91,7 +92,7 @@ public class EngineerService {
                 trimToNull(request.getIntroduction()),
                 trimToNull(request.getStoreName()),
                 trimToNull(request.getStoreAddress()),
-                request.getPhone().trim(),
+                normalizePhone(request.getPhone()),
                 request.getPhonePublic(),
                 request.getEngineerName().trim(),
                 request.getHeadline().trim()
@@ -187,6 +188,17 @@ public class EngineerService {
         return interestedEngineerPage.map(interestedEngineer ->
                 InterestedEngineerItemResponseDto.from(interestedEngineer.getEngineer())
         );
+    }
+
+    /**
+     * 기술자 전화번호 중복 여부를 확인한다.
+     */
+    @Transactional(readOnly = true)
+    public PhoneDuplicateCheckResponseDto checkPhoneDuplicate(String phone) {
+        String normalizedPhone = normalizePhone(phone);
+        boolean duplicated = engineerRepository.existsByPhone(normalizedPhone);
+
+        return new PhoneDuplicateCheckResponseDto(duplicated);
     }
 
     /**
