@@ -1,13 +1,18 @@
 package com.sonbadrim_server.domain.engineer.dto.request;
 
 import jakarta.validation.constraints.*;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
 
 @Getter
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class EngineerRequestDto {
 
     @NotEmpty(message = "시공분야는 최소 1개 이상 선택해야 합니다.")
