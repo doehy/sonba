@@ -21,6 +21,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -77,7 +79,7 @@ class EngineerServiceTest {
     class RegisterEngineer {
 
         @Test
-        @DisplayName("유효한 요청이면 기술자와 카테고리, 포트폴리오를 저장한다")
+        @DisplayName("올바른 형식의 정보로 기술자를 등록할 수 있다")
         void registerEngineer_success() {
             // given
             EngineerRequestDto request = createRequest(
@@ -117,7 +119,7 @@ class EngineerServiceTest {
         }
 
         @Test
-        @DisplayName("이미 기술자로 등록된 사용자는 다시 등록할 수 없다")
+        @DisplayName("이미 기술자로 등록한 사용자는 다시 등록할 수 없다")
         void registerEngineer_alreadyRegistered() {
             // given
             Engineer existingEngineer = Engineer.create(
@@ -145,7 +147,7 @@ class EngineerServiceTest {
         }
 
         @Test
-        @DisplayName("존재하지 않는 지역으로는 등록할 수 없다")
+        @DisplayName("존재하지 않는 지역으로는 기술자를 등록할 수 없다")
         void registerEngineer_regionNotFound() {
             // given
             EngineerRequestDto request = createRequestBuilder()
@@ -161,12 +163,13 @@ class EngineerServiceTest {
             assertThat(engineerRepository.count()).isZero();
         }
 
-        @Test
-        @DisplayName("시공 분야가 없으면 등록할 수 없다")
-        void registerEngineer_categoryIsEmpty() {
+        @ParameterizedTest
+        @NullAndEmptySource
+        @DisplayName("시공 분야가 없으면 기술자를 등록할 수 없다")
+        void registerEngineer_categoriesAreMissing(List<String> categories) {
             // given
             EngineerRequestDto request = createRequestBuilder()
-                    .categories(List.of())
+                    .categories(categories)
                     .build();
 
             // when & then
@@ -179,7 +182,7 @@ class EngineerServiceTest {
         }
 
         @Test
-        @DisplayName("공백으로만 이루어진 시공 분야는 등록할 수 없다")
+        @DisplayName("내용이 없는 시공 분야로는 기술자를 등록할 수 없다")
         void registerEngineer_categoryIsBlank() {
             // given
             EngineerRequestDto request = createRequestBuilder()
@@ -196,7 +199,7 @@ class EngineerServiceTest {
         }
 
         @Test
-        @DisplayName("존재하지 않는 시공 분야가 포함되면 등록할 수 없다")
+        @DisplayName("존재하지 않는 시공 분야가 포함되면 기술자를 등록할 수 없다")
         void registerEngineer_invalidCategory() {
             // given
             EngineerRequestDto request = createRequest(
@@ -217,7 +220,7 @@ class EngineerServiceTest {
         }
 
         @Test
-        @DisplayName("중복 시공 분야는 제거하고 한 번씩만 저장한다")
+        @DisplayName("같은 시공 분야를 여러 번 선택해도 한 번만 등록할 수 있다")
         void registerEngineer_duplicateCategories() {
             // given
             EngineerRequestDto request = createRequest(
@@ -238,7 +241,7 @@ class EngineerServiceTest {
         }
 
         @Test
-        @DisplayName("유효하지 않은 전화번호는 등록할 수 없다")
+        @DisplayName("올바르지 않은 전화번호로는 기술자를 등록할 수 없다")
         void registerEngineer_invalidPhone() {
             // given
             EngineerRequestDto request = createRequest(
@@ -258,8 +261,66 @@ class EngineerServiceTest {
             assertThat(portfolioRepository.count()).isZero();
         }
 
+        @ParameterizedTest
+        @NullAndEmptySource
+        @DisplayName("포트폴리오 이미지가 없으면 기술자를 등록할 수 없다")
+        void registerEngineer_portfolioImagesAreMissing(List<String> portfolioImages) {
+            // given
+            EngineerRequestDto request = createRequestBuilder()
+                    .portfolioImages(portfolioImages)
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.registerEngineer(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+
+            assertThat(engineerRepository.count()).isZero();
+            assertThat(engineerCategoryRepository.count()).isZero();
+            assertThat(portfolioRepository.count()).isZero();
+        }
+
         @Test
-        @DisplayName("빈 포트폴리오 URL과 중복 URL은 제거하고 저장한다")
+        @DisplayName("내용이 없는 포트폴리오 이미지로는 기술자를 등록할 수 없다")
+        void registerEngineer_portfolioImagesAreBlank() {
+            // given
+            EngineerRequestDto request = createRequestBuilder()
+                    .portfolioImages(List.of(" ", "  "))
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.registerEngineer(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+
+            assertThat(engineerRepository.count()).isZero();
+            assertThat(engineerCategoryRepository.count()).isZero();
+            assertThat(portfolioRepository.count()).isZero();
+        }
+
+        @Test
+        @DisplayName("하이픈이 포함된 전화번호에서 숫자만 빼서 저장한다")
+        void registerEngineer_normalizesPhone() {
+            // given
+            EngineerRequestDto request = createRequest(
+                    List.of("주방", "타일"),
+                    List.of("portfolio1.jpg"),
+                    "010-1234-5678"
+            );
+
+            // when
+            EngineerCreateResponse response = engineerService.registerEngineer(request);
+
+            // then
+            Engineer savedEngineer = engineerRepository.findById(response.getEngineerId())
+                    .orElseThrow();
+            assertThat(savedEngineer.getPhone()).isEqualTo("01012345678");
+        }
+
+        @Test
+        @DisplayName("비어 있거나 중복된 포트폴리오 이미지는 제외하고 등록한다")
         void registerEngineer_normalizesPortfolioImages() {
             // given
             EngineerRequestDto request = createRequest(

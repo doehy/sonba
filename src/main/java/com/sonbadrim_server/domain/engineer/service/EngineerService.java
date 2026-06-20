@@ -85,6 +85,21 @@ public class EngineerService {
             throw new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY);
         }
 
+        List<String> requestedPortfolioImages = request.getPortfolioImages();
+        if (requestedPortfolioImages == null || requestedPortfolioImages.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+        }
+
+        List<String> normalizedPortfolioImages = requestedPortfolioImages.stream()
+                .map(this::trimToNull)
+                .filter(image -> image != null)
+                .distinct()
+                .toList();
+
+        if (normalizedPortfolioImages.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+        }
+
         Engineer engineer = Engineer.create(
                 currentUser,
                 region,
@@ -104,20 +119,11 @@ public class EngineerService {
                 .toList();
         engineerCategoryRepository.saveAll(mappings);
 
-        List<String> portfolioImages = request.getPortfolioImages() == null
-                ? List.of()
-                : request.getPortfolioImages();
-
-        List<Portfolio> portfolios = portfolioImages.stream()
-                .map(this::trimToNull)
-                .filter(image -> image != null)
-                .distinct()
+        List<Portfolio> portfolios = normalizedPortfolioImages.stream()
                 .map(image -> Portfolio.create(engineer, image))
                 .toList();
 
-        if (!portfolios.isEmpty()) {
-            portfolioRepository.saveAll(portfolios);
-        }
+        portfolioRepository.saveAll(portfolios);
 
         return new EngineerCreateResponse(engineer.getEngineerId());
     }
