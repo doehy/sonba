@@ -130,4 +130,6 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long> {
               and e.profileImage <> ''
             """)
     List<String> findAllUsedProfileImageUrls();
+
+    boolean existsByPhoneAndEngineerIdNot(String phone, Long engineerId);
 }

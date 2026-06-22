@@ -62,6 +62,11 @@ public class EngineerService {
             throw new CustomException(ErrorCode.ENGINEER_ALREADY_REGISTERED);
         }
 
+        String normalizedPhone = normalizePhone(request.getPhone());
+        if (engineerRepository.existsByPhone(normalizedPhone)) {
+            throw new CustomException(ErrorCode.ENGINEER_PHONE_ALREADY_REGISTERED);
+        }
+
         Region region = regionRepository.findById(request.getRegionId())
                 .orElseThrow(() -> new CustomException(ErrorCode.REGION_NOT_FOUND));
 
@@ -107,7 +112,7 @@ public class EngineerService {
                 trimToNull(request.getIntroduction()),
                 trimToNull(request.getStoreName()),
                 trimToNull(request.getStoreAddress()),
-                normalizePhone(request.getPhone()),
+                normalizedPhone,
                 request.getPhonePublic(),
                 request.getEngineerName().trim(),
                 request.getHeadline().trim()
@@ -143,10 +148,19 @@ public class EngineerService {
         Region region = regionRepository.findById(request.getRegionId())
                 .orElseThrow(() -> new CustomException(ErrorCode.REGION_NOT_FOUND));
 
+        String normalizedPhone = normalizePhone(request.getPhone());
+
+        if (engineerRepository.existsByPhoneAndEngineerIdNot(
+                normalizedPhone,
+                engineer.getEngineerId()
+        )) {
+            throw new CustomException(ErrorCode.ENGINEER_PHONE_ALREADY_REGISTERED);
+        }
+
         engineer.updateInfo(
                 request.getEngineerName().trim(),
                 request.getHeadline().trim(),
-                normalizePhone(request.getPhone()),
+                normalizedPhone,
                 request.getPhonePublic(),
                 trimToNull(request.getProfileImage()),
                 trimToNull(request.getIntroduction()),

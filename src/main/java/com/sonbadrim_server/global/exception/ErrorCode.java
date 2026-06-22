@@ -38,6 +38,7 @@ public enum ErrorCode {
     // Engineer
     ENGINEER_NOT_FOUND(404, "ENGINEER_404_1", "기술자를 찾을 수 없습니다."),
     ENGINEER_ALREADY_REGISTERED(409, "ENGINEER_409_1", "이미 기술자 등록이 완료된 사용자입니다."),
+    ENGINEER_PHONE_ALREADY_REGISTERED(409, "ENGINEER_409_2", "이미 등록된 기술자 전화번호입니다."),
     CANNOT_MODIFY_ENGINEER(403,"ENGINEER_403_1", "기술자 정보를 수정할 권한이 없습니다."),
     CANNOT_UNJOIN_ENGINEER(403, "ENGINEER_403_2", "기술자 탈퇴할 권한이 없습니다."),
     CANNOT_INTEREST_OWN_ENGINEER(400, "ENGINEER_400_2", "본인을 관심 기술자로 등록할 수 없습니다."),

@@ -60,11 +60,6 @@ public class UserService {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
 
-        log.info("authentication = {}", authentication);
-        log.info("name = {}", authentication.getName());
-        log.info("principal = {}", authentication.getPrincipal());
-        log.info("authenticated = {}", authentication.isAuthenticated());
-
         Long userId;
         try {
             userId = Long.valueOf(authentication.getName());

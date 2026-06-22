@@ -52,7 +52,7 @@ public class Engineer extends BaseTimeEntity {
     @Column(name = "store_address", length = 255)
     private String storeAddress;
 
-    @Column(name = "phone", nullable = false, length = 20)
+    @Column(name = "phone", nullable = false, length = 20, unique = true)
     private String phone;
 
     @Column(name = "phone_public", nullable = false)
