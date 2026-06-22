@@ -221,13 +221,18 @@ public class EngineerService {
     public void deleteEngineer(Long engineerId) {
         User currentUser = userService.getCurrentUser();
 
-        Engineer engineer = engineerRepository.findByEngineerIdAndUser_UserId(engineerId, currentUser.getUserId())
+        Engineer engineer = engineerRepository.findById(engineerId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
 
-        currentUser.clearEngineer();
+        if (!engineer.getUser().getUserId().equals(currentUser.getUserId())) {
+            throw new CustomException(ErrorCode.CANNOT_UNJOIN_ENGINEER);
+        }
 
-        engineerCategoryRepository.deleteByEngineer(engineer);
-        portfolioRepository.deleteByEngineer(engineer);
+        interestedEngineerRepository.deleteAllByEngineer(engineer);
+        engineerCategoryRepository.deleteAllByEngineer(engineer);
+        portfolioRepository.deleteAllByEngineer(engineer);
+
+        currentUser.clearEngineer();
         engineerRepository.delete(engineer);
     }
 

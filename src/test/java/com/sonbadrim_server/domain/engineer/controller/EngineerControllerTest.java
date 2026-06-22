@@ -490,6 +490,52 @@ class EngineerControllerTest {
         }
     }
 
+    @Nested
+    @DisplayName("기술자 삭제")
+    class DeleteEngineer {
+
+        @Test
+        @DisplayName("본인의 기술자 정보를 삭제할 수 있다")
+        void deleteEngineer_success() throws Exception {
+            // when & then
+            mockMvc.perform(delete("/engineers/{engineerId}", 7L))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+
+            verify(engineerService).deleteEngineer(7L);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자 정보는 삭제할 수 없다")
+        void deleteEngineer_engineerNotFound() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.ENGINEER_NOT_FOUND))
+                    .given(engineerService)
+                    .deleteEngineer(999L);
+
+            // when & then
+            mockMvc.perform(delete("/engineers/{engineerId}", 999L))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("ENGINEER_NOT_FOUND"));
+        }
+
+        @Test
+        @DisplayName("다른 사용자의 기술자 정보는 삭제할 수 없다")
+        void deleteEngineer_notOwner() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.CANNOT_UNJOIN_ENGINEER))
+                    .given(engineerService)
+                    .deleteEngineer(7L);
+
+            // when & then
+            mockMvc.perform(delete("/engineers/{engineerId}", 7L))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("CANNOT_UNJOIN_ENGINEER"));
+        }
+    }
+
     private void expectRegistrationSuccess(EngineerRequestDto request) throws Exception {
         mockMvc.perform(post("/engineers")
                         .contentType(MediaType.APPLICATION_JSON)

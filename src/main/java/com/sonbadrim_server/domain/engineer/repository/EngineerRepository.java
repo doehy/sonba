@@ -31,8 +31,6 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long> {
 """)
     Optional<Engineer> findDetailByEngineerId(Long engineerId);
 
-    Optional<Engineer> findByEngineerIdAndUser_UserId(Long engineerId, Long userId);
-
     @Query(
             value = """
             select distinct e

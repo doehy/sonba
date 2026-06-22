@@ -778,6 +778,79 @@ class EngineerServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("기술자 삭제")
+    class DeleteEngineer {
+
+        @Test
+        @DisplayName("본인의 기술자 정보와 연결된 데이터를 삭제하고 다시 기술자로 등록할 수 있다")
+        void deleteEngineer_success() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "삭제기술자",
+                    "삭제 소개"
+            );
+            Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
+            engineerCategoryRepository.save(
+                    EngineerCategory.create(engineer, kitchen)
+            );
+            portfolioRepository.save(
+                    Portfolio.create(engineer, "portfolio.jpg")
+            );
+            User interestedUser = saveUser(900000000002L, "관심사용자");
+            interestedEngineerRepository.save(
+                    InterestedEngineer.create(interestedUser, engineer)
+            );
+
+            // when
+            engineerService.deleteEngineer(engineer.getEngineerId());
+            entityManager.flush();
+
+            // then
+            assertThat(engineerRepository.findById(engineer.getEngineerId())).isEmpty();
+            assertThat(engineerCategoryRepository.count()).isZero();
+            assertThat(portfolioRepository.count()).isZero();
+            assertThat(interestedEngineerRepository.count()).isZero();
+
+            EngineerCreateResponse response =
+                    engineerService.registerEngineer(createValidRequest());
+            assertThat(engineerRepository.findById(response.getEngineerId())).isPresent();
+        }
+
+        @Test
+        @DisplayName("다른 사용자의 기술자 정보는 삭제할 수 없다")
+        void deleteEngineer_notOwner() {
+            // given
+            User anotherUser = saveUser(900000000002L, "다른사용자");
+            Engineer engineer = saveEngineer(
+                    anotherUser,
+                    "01011112222",
+                    "다른기술자",
+                    "다른 소개"
+            );
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.deleteEngineer(engineer.getEngineerId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.CANNOT_UNJOIN_ENGINEER);
+
+            assertThat(engineerRepository.findById(engineer.getEngineerId())).isPresent();
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자 정보는 삭제할 수 없다")
+        void deleteEngineer_engineerNotFound() {
+            // when & then
+            assertThatThrownBy(() -> engineerService.deleteEngineer(999L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_NOT_FOUND);
+        }
+    }
+
 
     private EngineerRequestDto createValidRequest() {
         return createRequest(
