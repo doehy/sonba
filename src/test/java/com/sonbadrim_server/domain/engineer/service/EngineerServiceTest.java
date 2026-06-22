@@ -2,11 +2,14 @@ package com.sonbadrim_server.domain.engineer.service;
 
 import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
+import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
+import com.sonbadrim_server.domain.engineer.entity.InterestedEngineer;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
+import com.sonbadrim_server.domain.engineer.repository.InterestedEngineerRepository;
 import com.sonbadrim_server.domain.category.entity.Category;
 import com.sonbadrim_server.domain.category.repository.CategoryRepository;
 import com.sonbadrim_server.domain.portfolio.entity.Portfolio;
@@ -20,7 +23,9 @@ import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -30,6 +35,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.jdbc.Sql;
@@ -57,6 +64,9 @@ class EngineerServiceTest {
     private EngineerCategoryRepository engineerCategoryRepository;
 
     @Autowired
+    private InterestedEngineerRepository interestedEngineerRepository;
+
+    @Autowired
     private PortfolioRepository portfolioRepository;
 
     @Autowired
@@ -67,6 +77,9 @@ class EngineerServiceTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @MockitoBean
     private UserService userService;
@@ -80,6 +93,11 @@ class EngineerServiceTest {
         currentUser = saveUser(900000000001L, "테스트유저");
 
         given(userService.getCurrentUser()).willReturn(currentUser);
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
     }
 
     @Nested
@@ -675,6 +693,91 @@ class EngineerServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("기술자 상세 조회")
+    class GetEngineerDetail {
+
+        @Test
+        @DisplayName("비로그인 사용자도 기술자 상세 정보를 조회할 수 있다")
+        void getEngineerDetail_anonymous() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "상세기술자",
+                    "상세 소개"
+            );
+            Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
+            Category tile = categoryRepository.findByCategoryName("타일").orElseThrow();
+            engineerCategoryRepository.saveAll(List.of(
+                    EngineerCategory.create(engineer, kitchen),
+                    EngineerCategory.create(engineer, tile)
+            ));
+            portfolioRepository.saveAll(List.of(
+                    Portfolio.create(engineer, "portfolio1.jpg"),
+                    Portfolio.create(engineer, "portfolio2.jpg")
+            ));
+            entityManager.flush();
+            entityManager.clear();
+            SecurityContextHolder.clearContext();
+
+            // when
+            EngineerDetailResponseDto result =
+                    engineerService.getEngineerDetail(engineer.getEngineerId());
+
+            // then
+            assertThat(result.getEngineerId()).isEqualTo(engineer.getEngineerId());
+            assertThat(result.getUserId()).isEqualTo(currentUser.getUserId());
+            assertThat(result.getEngineerName()).isEqualTo("상세기술자");
+            assertThat(result.getHeadline()).isEqualTo("상세 소개");
+            assertThat(result.getProfileImage()).isEqualTo("old-profile.jpg");
+            assertThat(result.getRegionName()).isEqualTo("서울특별시 강남구");
+            assertThat(result.getCategories()).containsExactlyInAnyOrder("주방", "타일");
+            assertThat(result.getIntroduction()).isEqualTo("기존 소개");
+            assertThat(result.getStoreName()).isEqualTo("기존 상호");
+            assertThat(result.getStoreAddress()).isEqualTo("기존 주소");
+            assertThat(result.getPhone()).isEqualTo("01011112222");
+            assertThat(result.isPhonePublic()).isTrue();
+            assertThat(result.isInterested()).isFalse();
+            assertThat(result.getPortfolioImages())
+                    .containsExactly("portfolio1.jpg", "portfolio2.jpg");
+        }
+
+        @Test
+        @DisplayName("관심 기술자로 등록한 사용자를 조회하면 관심 기술자 여부가 참이다")
+        void getEngineerDetail_interested() {
+            // given
+            User engineerUser = saveUser(900000000002L, "기술자사용자");
+            Engineer engineer = saveEngineer(
+                    engineerUser,
+                    "01011112222",
+                    "관심기술자",
+                    "관심 소개"
+            );
+            interestedEngineerRepository.save(
+                    InterestedEngineer.create(currentUser, engineer)
+            );
+            setAuthenticatedUser(currentUser);
+
+            // when
+            EngineerDetailResponseDto result =
+                    engineerService.getEngineerDetail(engineer.getEngineerId());
+
+            // then
+            assertThat(result.isInterested()).isTrue();
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자 상세 정보는 조회할 수 없다")
+        void getEngineerDetail_engineerNotFound() {
+            // when & then
+            assertThatThrownBy(() -> engineerService.getEngineerDetail(999L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_NOT_FOUND);
+        }
+    }
+
 
     private EngineerRequestDto createValidRequest() {
         return createRequest(
@@ -741,5 +844,15 @@ class EngineerServiceTest {
                 headline
         );
         return engineerRepository.save(engineer);
+    }
+
+    private void setAuthenticatedUser(User user) {
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(
+                        String.valueOf(user.getUserId()),
+                        null,
+                        List.of()
+                );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }

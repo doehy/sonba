@@ -2,6 +2,7 @@ package com.sonbadrim_server.domain.engineer.controller;
 
 import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
+import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.service.EngineerService;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
@@ -430,6 +431,62 @@ class EngineerControllerTest {
             ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
             verify(engineerService).getEngineerList(captor.capture());
             return captor.getValue();
+        }
+    }
+
+    @Nested
+    @DisplayName("기술자 상세 조회")
+    class GetEngineerDetail {
+
+        @Test
+        @DisplayName("기술자 상세 정보를 조회할 수 있다")
+        void getEngineerDetail_success() throws Exception {
+            // given
+            EngineerDetailResponseDto response = EngineerDetailResponseDto.builder()
+                    .engineerId(7L)
+                    .userId(5L)
+                    .engineerName("김기술")
+                    .headline("주방 시공 전문")
+                    .profileImage("profile.jpg")
+                    .regionName("서울특별시 강남구")
+                    .categories(List.of("주방", "타일"))
+                    .introduction("상세 자기소개")
+                    .storeName("기술 상사")
+                    .storeAddress("서울특별시 강남구")
+                    .phone("01012345678")
+                    .phonePublic(true)
+                    .interested(true)
+                    .portfolioImages(List.of("portfolio1.jpg", "portfolio2.jpg"))
+                    .build();
+            given(engineerService.getEngineerDetail(7L))
+                    .willReturn(response);
+
+            // when & then
+            mockMvc.perform(get("/engineers/{engineerId}", 7L))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.engineerId").value(7L))
+                    .andExpect(jsonPath("$.data.userId").value(5L))
+                    .andExpect(jsonPath("$.data.engineerName").value("김기술"))
+                    .andExpect(jsonPath("$.data.categories[0]").value("주방"))
+                    .andExpect(jsonPath("$.data.interested").value(true))
+                    .andExpect(jsonPath("$.data.portfolioImages[0]").value("portfolio1.jpg"));
+
+            verify(engineerService).getEngineerDetail(7L);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자 상세 정보는 조회할 수 없다")
+        void getEngineerDetail_engineerNotFound() throws Exception {
+            // given
+            given(engineerService.getEngineerDetail(999L))
+                    .willThrow(new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+
+            // when & then
+            mockMvc.perform(get("/engineers/{engineerId}", 999L))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("ENGINEER_NOT_FOUND"));
         }
     }
 

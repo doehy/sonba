@@ -1,0 +1,123 @@
+package com.sonbadrim_server.domain.engineer.repository;
+
+import com.sonbadrim_server.domain.category.entity.Category;
+import com.sonbadrim_server.domain.category.repository.CategoryRepository;
+import com.sonbadrim_server.domain.engineer.entity.Engineer;
+import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
+import com.sonbadrim_server.domain.region.entity.Region;
+import com.sonbadrim_server.domain.region.repository.RegionRepository;
+import com.sonbadrim_server.domain.user.entity.User;
+import com.sonbadrim_server.domain.user.entity.UserRole;
+import com.sonbadrim_server.domain.user.entity.UserStatus;
+import com.sonbadrim_server.domain.user.repository.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceUnitUtil;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest
+@ActiveProfiles("test")
+@Transactional
+@Sql("/sql/engineer-test-data.sql")
+class EngineerRepositoryTest {
+
+    @Autowired
+    private EngineerRepository engineerRepository;
+
+    @Autowired
+    private EngineerCategoryRepository engineerCategoryRepository;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+    @Autowired
+    private RegionRepository regionRepository;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Nested
+    @DisplayName("기술자 상세 조회")
+    class FindDetailByEngineerId {
+
+        @Test
+        @DisplayName("기술자 상세 정보와 연관된 사용자, 지역, 시공 분야를 함께 조회할 수 있다")
+        void findDetailByEngineerId_success() {
+            // given
+            Region region = regionRepository.findAllByOrderByRegionIdAsc().getFirst();
+            User user = userRepository.save(User.builder()
+                    .region(region)
+                    .kakaoId(900000000001L)
+                    .nickname("테스트유저")
+                    .role(UserRole.USER)
+                    .status(UserStatus.ACTIVE)
+                    .build());
+            Engineer engineer = engineerRepository.save(Engineer.create(
+                    user,
+                    region,
+                    "profile.jpg",
+                    "상세 소개",
+                    "테스트 상호",
+                    "테스트 주소",
+                    "01011112222",
+                    true,
+                    "상세기술자",
+                    "주방 시공 전문"
+            ));
+            Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
+            Category tile = categoryRepository.findByCategoryName("타일").orElseThrow();
+            engineerCategoryRepository.saveAll(List.of(
+                    EngineerCategory.create(engineer, kitchen),
+                    EngineerCategory.create(engineer, tile)
+            ));
+
+            entityManager.flush();
+            entityManager.clear();
+
+            // when
+            Engineer foundEngineer = engineerRepository
+                    .findDetailByEngineerId(engineer.getEngineerId())
+                    .orElseThrow();
+
+            // then
+            PersistenceUnitUtil persistenceUnitUtil =
+                    entityManager.getEntityManagerFactory().getPersistenceUnitUtil();
+
+            assertThat(foundEngineer.getEngineerId()).isEqualTo(engineer.getEngineerId());
+            assertThat(persistenceUnitUtil.isLoaded(foundEngineer, "user")).isTrue();
+            assertThat(persistenceUnitUtil.isLoaded(foundEngineer, "region")).isTrue();
+            assertThat(persistenceUnitUtil.isLoaded(foundEngineer, "engineerCategories")).isTrue();
+            assertThat(foundEngineer.getUser().getUserId()).isEqualTo(user.getUserId());
+            assertThat(foundEngineer.getRegion().getRegionId()).isEqualTo(region.getRegionId());
+            assertThat(foundEngineer.getEngineerCategories())
+                    .allSatisfy(mapping ->
+                            assertThat(persistenceUnitUtil.isLoaded(mapping, "category")).isTrue()
+                    )
+                    .extracting(mapping -> mapping.getCategory().getCategoryName())
+                    .containsExactlyInAnyOrder("주방", "타일");
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자 상세 정보는 조회되지 않는다")
+        void findDetailByEngineerId_notFound() {
+            // when
+            var result = engineerRepository.findDetailByEngineerId(999L);
+
+            // then
+            assertThat(result).isEmpty();
+        }
+    }
+}

@@ -197,31 +197,6 @@ public class EngineerService {
     }
 
     /**
-     * 현재 사용자의 관심 기술자 목록을 조회한다.
-     */
-    @Transactional(readOnly = true)
-    public Page<InterestedEngineerItemResponseDto> getInterestedEngineers(Pageable pageable) {
-        User currentUser = userService.getCurrentUser();
-        Page<InterestedEngineer> interestedEngineerPage =
-                interestedEngineerRepository.findByUser_UserIdOrderByCreatedAtDesc(currentUser.getUserId(), pageable);
-
-        return interestedEngineerPage.map(interestedEngineer ->
-                InterestedEngineerItemResponseDto.from(interestedEngineer.getEngineer())
-        );
-    }
-
-    /**
-     * 기술자 전화번호 중복 여부를 확인한다.
-     */
-    @Transactional(readOnly = true)
-    public PhoneDuplicateCheckResponseDto checkPhoneDuplicate(String phone) {
-        String normalizedPhone = normalizePhone(phone);
-        boolean duplicated = engineerRepository.existsByPhone(normalizedPhone);
-
-        return new PhoneDuplicateCheckResponseDto(duplicated);
-    }
-
-    /**
      * 기술자 상세 조회
      * @return EngineerDetailResponseDto
      */
@@ -256,6 +231,20 @@ public class EngineerService {
         engineerRepository.delete(engineer);
     }
 
+    /**
+     * 현재 사용자의 관심 기술자 목록을 조회한다.
+     */
+    @Transactional(readOnly = true)
+    public Page<InterestedEngineerItemResponseDto> getInterestedEngineers(Pageable pageable) {
+        User currentUser = userService.getCurrentUser();
+        Page<InterestedEngineer> interestedEngineerPage =
+                interestedEngineerRepository.findByUser_UserIdOrderByCreatedAtDesc(currentUser.getUserId(), pageable);
+
+        return interestedEngineerPage.map(interestedEngineer ->
+                InterestedEngineerItemResponseDto.from(interestedEngineer.getEngineer())
+        );
+    }
+
     public void addInterestedEngineer(Long engineerId) {
         User user = userService.getCurrentUser();
         Engineer engineer = engineerRepository.findById(engineerId)
@@ -286,6 +275,17 @@ public class EngineerService {
                 user.getUserId(),
                 engineerId
         );
+    }
+
+    /**
+     * 기술자 전화번호 중복 여부를 확인한다.
+     */
+    @Transactional(readOnly = true)
+    public PhoneDuplicateCheckResponseDto checkPhoneDuplicate(String phone) {
+        String normalizedPhone = normalizePhone(phone);
+        boolean duplicated = engineerRepository.existsByPhone(normalizedPhone);
+
+        return new PhoneDuplicateCheckResponseDto(duplicated);
     }
 
     private void validateOwner(Engineer engineer, User currentUser) {
