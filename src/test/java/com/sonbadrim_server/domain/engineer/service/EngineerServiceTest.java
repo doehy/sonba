@@ -6,6 +6,8 @@ import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
+import com.sonbadrim_server.domain.category.entity.Category;
+import com.sonbadrim_server.domain.category.repository.CategoryRepository;
 import com.sonbadrim_server.domain.portfolio.entity.Portfolio;
 import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
 import com.sonbadrim_server.domain.region.entity.Region;
@@ -56,6 +58,9 @@ class EngineerServiceTest {
 
     @Autowired
     private RegionRepository regionRepository;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -339,7 +344,230 @@ class EngineerServiceTest {
                     .extracting(Portfolio::getPortfolioImage)
                     .containsExactly("portfolio1.jpg", "portfolio2.jpg");
         }
+
+        @Test
+        @DisplayName("이미 등록된 전화번호로는 기술자를 등록할 수 없다")
+        void registerEngineer_phoneAlreadyRegistered() {
+            // given
+            User anotherUser = saveUser(900000000002L, "다른사용자");
+            Engineer existingEngineer = Engineer.create(
+                    anotherUser,
+                    region,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "01012345678",
+                    false,
+                    "기존기술자",
+                    "기존 소개"
+            );
+            engineerRepository.save(existingEngineer);
+
+            EngineerRequestDto request = createRequestBuilder()
+                    .phone("010-1234-5678")
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.registerEngineer(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_PHONE_ALREADY_REGISTERED);
+
+            assertThat(engineerRepository.count()).isEqualTo(1);
+        }
+
     }
+
+    @Nested
+    @DisplayName("기술자 수정")
+    class UpdateEngineer {
+
+        @Test
+        @DisplayName("본인의 기술자 정보를 수정할 수 있다")
+        void updateEngineer_success() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
+            engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
+            portfolioRepository.save(Portfolio.create(engineer, "old-portfolio.jpg"));
+
+            EngineerRequestDto request = createRequestBuilder()
+                    .categories(List.of("타일"))
+                    .portfolioImages(List.of(" new-portfolio.jpg "))
+                    .profileImage(" new-profile.jpg ")
+                    .introduction(" 새로운 소개 ")
+                    .storeName(" 새로운 상호 ")
+                    .storeAddress(" 새로운 주소 ")
+                    .phone("010-2222-3333")
+                    .phonePublic(false)
+                    .engineerName(" 새로운기술자 ")
+                    .headline(" 새로운 짧은 소개 ")
+                    .build();
+
+            // when
+            engineerService.updateEngineer(engineer.getEngineerId(), request);
+
+            // then
+            Engineer updatedEngineer = engineerRepository.findById(engineer.getEngineerId())
+                    .orElseThrow();
+            List<EngineerCategory> updatedCategories =
+                    engineerCategoryRepository.findByEngineer_EngineerIdIn(List.of(engineer.getEngineerId()));
+            List<Portfolio> updatedPortfolios =
+                    portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId());
+
+            assertThat(updatedEngineer.getEngineerName()).isEqualTo("새로운기술자");
+            assertThat(updatedEngineer.getHeadline()).isEqualTo("새로운 짧은 소개");
+            assertThat(updatedEngineer.getPhone()).isEqualTo("01022223333");
+            assertThat(updatedEngineer.isPhonePublic()).isFalse();
+            assertThat(updatedEngineer.getProfileImage()).isEqualTo("new-profile.jpg");
+            assertThat(updatedEngineer.getIntroduction()).isEqualTo("새로운 소개");
+            assertThat(updatedEngineer.getStoreName()).isEqualTo("새로운 상호");
+            assertThat(updatedEngineer.getStoreAddress()).isEqualTo("새로운 주소");
+            assertThat(updatedCategories)
+                    .extracting(mapping -> mapping.getCategory().getCategoryName())
+                    .containsExactly("타일");
+            assertThat(updatedPortfolios)
+                    .extracting(Portfolio::getPortfolioImage)
+                    .containsExactly("new-portfolio.jpg");
+        }
+
+        @Test
+        @DisplayName("다른 사용자의 기술자 정보를 수정할 수 없다")
+        void updateEngineer_notOwner() {
+            // given
+            User anotherUser = saveUser(900000000002L, "다른사용자");
+            Engineer engineer = saveEngineer(
+                    anotherUser,
+                    "01011112222",
+                    "다른기술자",
+                    "기존 소개"
+            );
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.updateEngineer(
+                    engineer.getEngineerId(),
+                    createValidRequest()
+            ))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.CANNOT_MODIFY_ENGINEER);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자 정보는 수정할 수 없다")
+        void updateEngineer_engineerNotFound() {
+            // when & then
+            assertThatThrownBy(() -> engineerService.updateEngineer(999L, createValidRequest()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 지역으로 기술자 정보를 수정할 수 없다")
+        void updateEngineer_regionNotFound() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            EngineerRequestDto request = createRequestBuilder()
+                    .regionId(999)
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.updateEngineer(engineer.getEngineerId(), request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.REGION_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 시공 분야가 포함되면 기술자 정보를 수정할 수 없다")
+        void updateEngineer_invalidCategory() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            EngineerRequestDto request = createRequestBuilder()
+                    .categories(List.of("주방", "없는분야"))
+                    .phone("010-1111-2222")
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.updateEngineer(engineer.getEngineerId(), request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_ENGINEER_CATEGORY);
+        }
+
+        @Test
+        @DisplayName("기존 전화번호를 유지하면서 기술자 정보를 수정할 수 있다")
+        void updateEngineer_samePhone() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            EngineerRequestDto request = createRequestBuilder()
+                    .phone("010-1111-2222")
+                    .engineerName("변경된기술자")
+                    .build();
+
+            // when
+            engineerService.updateEngineer(engineer.getEngineerId(), request);
+
+            // then
+            Engineer updatedEngineer = engineerRepository.findById(engineer.getEngineerId())
+                    .orElseThrow();
+            assertThat(updatedEngineer.getPhone()).isEqualTo("01011112222");
+            assertThat(updatedEngineer.getEngineerName()).isEqualTo("변경된기술자");
+        }
+
+        @Test
+        @DisplayName("다른 기술자가 사용하는 전화번호로 수정할 수 없다")
+        void updateEngineer_phoneAlreadyRegistered() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            User anotherUser = saveUser(900000000002L, "다른사용자");
+            saveEngineer(
+                    anotherUser,
+                    "01033334444",
+                    "다른기술자",
+                    "다른 소개"
+            );
+            EngineerRequestDto request = createRequestBuilder()
+                    .phone("010-3333-4444")
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.updateEngineer(engineer.getEngineerId(), request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_PHONE_ALREADY_REGISTERED);
+
+            assertThat(engineer.getPhone()).isEqualTo("01011112222");
+        }
+    }
+
 
     private EngineerRequestDto createValidRequest() {
         return createRequest(
@@ -385,5 +613,26 @@ class EngineerServiceTest {
                 .status(UserStatus.ACTIVE)
                 .build();
         return userRepository.save(user);
+    }
+
+    private Engineer saveEngineer(
+            User user,
+            String phone,
+            String engineerName,
+            String headline
+    ) {
+        Engineer engineer = Engineer.create(
+                user,
+                region,
+                "old-profile.jpg",
+                "기존 소개",
+                "기존 상호",
+                "기존 주소",
+                phone,
+                true,
+                engineerName,
+                headline
+        );
+        return engineerRepository.save(engineer);
     }
 }

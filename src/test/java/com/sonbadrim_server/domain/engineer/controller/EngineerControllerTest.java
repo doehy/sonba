@@ -4,6 +4,8 @@ import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.service.EngineerService;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
+import com.sonbadrim_server.global.exception.CustomException;
+import com.sonbadrim_server.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
@@ -18,8 +20,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
-import static org.mockito.BDDMockito.given;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -261,6 +266,89 @@ class EngineerControllerTest {
 
             // when & then
             expectValidationFailure(request, "headline");
+        }
+    }
+
+    @Nested
+    @DisplayName("기술자 수정")
+    class UpdateEngineer {
+
+        @Test
+        @DisplayName("올바른 형식의 정보로 본인의 기술자 정보를 수정할 수 있다")
+        void updateEngineer_success() throws Exception {
+            // given
+            EngineerRequestDto request = createEngineerRequestBuilder()
+                    .engineerName("수정된기술자")
+                    .build();
+
+            // when & then
+            mockMvc.perform(patch("/engineers/{engineerId}", 7L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+
+            verify(engineerService).updateEngineer(
+                    eq(7L),
+                    any(EngineerRequestDto.class)
+            );
+        }
+
+        @Test
+        @DisplayName("올바르지 않은 형식의 정보로 기술자 정보를 수정할 수 없다")
+        void updateEngineer_validationFailure() throws Exception {
+            // given
+            EngineerRequestDto request = createEngineerRequestBuilder()
+                    .engineerName(" ")
+                    .build();
+
+            // when & then
+            mockMvc.perform(patch("/engineers/{engineerId}", 7L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("GLOBAL_400_1"))
+                    .andExpect(jsonPath("$.data.validation.engineerName").exists());
+
+            verify(engineerService, never())
+                    .updateEngineer(anyLong(), any(EngineerRequestDto.class));
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자 정보는 수정할 수 없다")
+        void updateEngineer_engineerNotFound() throws Exception {
+            // given
+            EngineerRequestDto request = createEngineerRequestBuilder().build();
+            willThrow(new CustomException(ErrorCode.ENGINEER_NOT_FOUND))
+                    .given(engineerService)
+                    .updateEngineer(eq(999L), any(EngineerRequestDto.class));
+
+            // when & then
+            mockMvc.perform(patch("/engineers/{engineerId}", 999L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("ENGINEER_NOT_FOUND"));
+        }
+
+        @Test
+        @DisplayName("다른 사용자의 기술자 정보를 수정할 수 없다")
+        void updateEngineer_notOwner() throws Exception {
+            // given
+            EngineerRequestDto request = createEngineerRequestBuilder().build();
+            willThrow(new CustomException(ErrorCode.CANNOT_MODIFY_ENGINEER))
+                    .given(engineerService)
+                    .updateEngineer(eq(7L), any(EngineerRequestDto.class));
+
+            // when & then
+            mockMvc.perform(patch("/engineers/{engineerId}", 7L)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("CANNOT_MODIFY_ENGINEER"));
         }
     }
 
