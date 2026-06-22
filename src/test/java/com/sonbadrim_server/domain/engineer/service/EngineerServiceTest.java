@@ -2,6 +2,7 @@ package com.sonbadrim_server.domain.engineer.service;
 
 import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
+import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
@@ -27,6 +28,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.jdbc.Sql;
@@ -565,6 +568,110 @@ class EngineerServiceTest {
                     .isEqualTo(ErrorCode.ENGINEER_PHONE_ALREADY_REGISTERED);
 
             assertThat(engineer.getPhone()).isEqualTo("01011112222");
+        }
+    }
+
+    @Nested
+    @DisplayName("기술자 목록 조회")
+    class GetEngineerList {
+
+        @Test
+        @DisplayName("기술자 목록을 페이지 단위로 조회할 수 있다")
+        void getEngineerList_success() {
+            // given
+            Engineer firstEngineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "첫번째기술자",
+                    "첫 번째 소개"
+            );
+            User anotherUser = saveUser(900000000002L, "다른사용자");
+            Engineer secondEngineer = saveEngineer(
+                    anotherUser,
+                    "01033334444",
+                    "두번째기술자",
+                    "두 번째 소개"
+            );
+            Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
+            Category tile = categoryRepository.findByCategoryName("타일").orElseThrow();
+            engineerCategoryRepository.saveAll(List.of(
+                    EngineerCategory.create(firstEngineer, kitchen),
+                    EngineerCategory.create(firstEngineer, tile),
+                    EngineerCategory.create(secondEngineer, tile)
+            ));
+            PageRequest pageable = PageRequest.of(0, 10);
+
+            // when
+            Page<EngineerSummaryResponseDto> result =
+                    engineerService.getEngineerList(pageable);
+
+            // then
+            assertThat(result.getTotalElements()).isEqualTo(2);
+            assertThat(result.getNumber()).isZero();
+            assertThat(result.getSize()).isEqualTo(10);
+            assertThat(result.getContent()).hasSize(2);
+
+            assertThat(result.getContent())
+                    .filteredOn(summary -> summary.getEngineerId().equals(firstEngineer.getEngineerId()))
+                    .singleElement()
+                    .satisfies(summary -> {
+                        assertThat(summary.getEngineerName()).isEqualTo("첫번째기술자");
+                        assertThat(summary.getProfileImage()).isEqualTo("old-profile.jpg");
+                        assertThat(summary.getIntroduction()).isEqualTo("기존 소개");
+                        assertThat(summary.getCategories())
+                                .containsExactlyInAnyOrder("주방", "타일");
+                    });
+
+            assertThat(result.getContent())
+                    .filteredOn(summary -> summary.getEngineerId().equals(secondEngineer.getEngineerId()))
+                    .singleElement()
+                    .satisfies(summary -> {
+                        assertThat(summary.getEngineerName()).isEqualTo("두번째기술자");
+                        assertThat(summary.getProfileImage()).isEqualTo("old-profile.jpg");
+                        assertThat(summary.getIntroduction()).isEqualTo("기존 소개");
+                        assertThat(summary.getCategories()).containsExactly("타일");
+                    });
+        }
+
+        @Test
+        @DisplayName("자기소개가 100자를 초과하면 줄여서 조회한다")
+        void getEngineerList_truncatesIntroduction() {
+            // given
+            String longIntroduction = "가".repeat(101);
+            Engineer engineer = Engineer.create(
+                    currentUser,
+                    region,
+                    "profile.jpg",
+                    longIntroduction,
+                    "테스트 상호",
+                    "테스트 주소",
+                    "01011112222",
+                    true,
+                    "목록기술자",
+                    "목록 소개"
+            );
+            engineerRepository.save(engineer);
+
+            // when
+            Page<EngineerSummaryResponseDto> result =
+                    engineerService.getEngineerList(PageRequest.of(0, 10));
+
+            // then
+            assertThat(result.getContent()).singleElement()
+                    .extracting(EngineerSummaryResponseDto::getIntroduction)
+                    .isEqualTo("가".repeat(100) + "...");
+        }
+
+        @Test
+        @DisplayName("등록된 기술자가 없으면 빈 목록을 조회한다")
+        void getEngineerList_empty() {
+            // when
+            Page<EngineerSummaryResponseDto> result =
+                    engineerService.getEngineerList(PageRequest.of(0, 10));
+
+            // then
+            assertThat(result.getContent()).isEmpty();
+            assertThat(result.getTotalElements()).isZero();
         }
     }
 

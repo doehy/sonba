@@ -2,6 +2,7 @@ package com.sonbadrim_server.domain.engineer.controller;
 
 import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
+import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.service.EngineerService;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.global.exception.CustomException;
@@ -11,6 +12,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -20,6 +25,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
+import org.mockito.ArgumentCaptor;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -349,6 +357,79 @@ class EngineerControllerTest {
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.success").value(false))
                     .andExpect(jsonPath("$.data.code").value("CANNOT_MODIFY_ENGINEER"));
+        }
+    }
+
+    @Nested
+    @DisplayName("기술자 목록 조회")
+    class GetEngineerList {
+
+        @Test
+        @DisplayName("기술자 목록을 기본 페이지 설정으로 조회할 수 있다")
+        void getEngineerList_defaultPageable() throws Exception {
+            // given
+            EngineerSummaryResponseDto engineer = EngineerSummaryResponseDto.builder()
+                    .engineerId(1L)
+                    .engineerName("김기술")
+                    .profileImage("profile.jpg")
+                    .categories(List.of("주방", "타일"))
+                    .introduction("주방 시공 전문가입니다.")
+                    .build();
+            given(engineerService.getEngineerList(any(Pageable.class)))
+                    .willReturn(new PageImpl<>(
+                            List.of(engineer),
+                            PageRequest.of(0, 20),
+                            1
+                    ));
+
+            // when & then
+            mockMvc.perform(get("/engineers"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.content[0].engineerId").value(1L))
+                    .andExpect(jsonPath("$.data.content[0].engineerName").value("김기술"))
+                    .andExpect(jsonPath("$.data.content[0].profileImage").value("profile.jpg"))
+                    .andExpect(jsonPath("$.data.content[0].categories[0]").value("주방"))
+                    .andExpect(jsonPath("$.data.content[0].introduction").value("주방 시공 전문가입니다."))
+                    .andExpect(jsonPath("$.data.totalElements").value(1));
+
+            Pageable pageable = captureRequestedPageable();
+            assertThat(pageable.getPageNumber()).isZero();
+            assertThat(pageable.getPageSize()).isEqualTo(20);
+            assertThat(pageable.getSort().getOrderFor("createdAt").getDirection())
+                    .isEqualTo(Sort.Direction.DESC);
+        }
+
+        @Test
+        @DisplayName("페이지 번호와 크기를 지정하여 기술자 목록을 조회할 수 있다")
+        void getEngineerList_customPageable() throws Exception {
+            // given
+            given(engineerService.getEngineerList(any(Pageable.class)))
+                    .willReturn(new PageImpl<>(
+                            List.of(),
+                            PageRequest.of(2, 10),
+                            0
+                    ));
+
+            // when & then
+            mockMvc.perform(get("/engineers")
+                            .param("page", "2")
+                            .param("size", "10"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.content").isEmpty());
+
+            Pageable pageable = captureRequestedPageable();
+            assertThat(pageable.getPageNumber()).isEqualTo(2);
+            assertThat(pageable.getPageSize()).isEqualTo(10);
+            assertThat(pageable.getSort().getOrderFor("createdAt").getDirection())
+                    .isEqualTo(Sort.Direction.DESC);
+        }
+
+        private Pageable captureRequestedPageable() {
+            ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+            verify(engineerService).getEngineerList(captor.capture());
+            return captor.getValue();
         }
     }
 
