@@ -59,7 +59,7 @@ public class EngineerController {
     @GetMapping("/interests")
     public ResponseEntity<?> getInterestedEngineers(
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size
+            @RequestParam(name = "size", defaultValue = "15") int size
     ) {
         Pageable pageable = PageRequest.of(page, size);
         Page<InterestedEngineerItemResponseDto> engineerList = engineerService.getInterestedEngineers(pageable);
