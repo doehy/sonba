@@ -70,40 +70,9 @@ public class EngineerService {
         Region region = regionRepository.findById(request.getRegionId())
                 .orElseThrow(() -> new CustomException(ErrorCode.REGION_NOT_FOUND));
 
-        List<String> requestedCategoryNames = request.getCategories();
-        if (requestedCategoryNames == null || requestedCategoryNames.isEmpty()) {
-            throw new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY);
-        }
-
-        List<String> normalizedCategoryNames = requestedCategoryNames.stream()
-                .map(String::trim)
-                .filter(category -> !category.isBlank())
-                .distinct()
-                .toList();
-
-        if (normalizedCategoryNames.isEmpty()) {
-            throw new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY);
-        }
-
-        List<Category> categories = categoryRepository.findByCategoryNameIn(normalizedCategoryNames);
-        if (categories.size() != normalizedCategoryNames.size()) {
-            throw new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY);
-        }
-
-        List<String> requestedPortfolioImages = request.getPortfolioImages();
-        if (requestedPortfolioImages == null || requestedPortfolioImages.isEmpty()) {
-            throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
-        }
-
-        List<String> normalizedPortfolioImages = requestedPortfolioImages.stream()
-                .map(this::trimToNull)
-                .filter(image -> image != null)
-                .distinct()
-                .toList();
-
-        if (normalizedPortfolioImages.isEmpty()) {
-            throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
-        }
+        List<Category> categories = validateAndGetCategories(request.getCategories());
+        List<String> normalizedPortfolioImages =
+                validateAndNormalizePortfolioImages(request.getPortfolioImages());
 
         Engineer engineer = Engineer.create(
                 currentUser,
@@ -157,6 +126,10 @@ public class EngineerService {
             throw new CustomException(ErrorCode.ENGINEER_PHONE_ALREADY_REGISTERED);
         }
 
+        List<Category> categories = validateAndGetCategories(request.getCategories());
+        List<String> normalizedPortfolioImages =
+                validateAndNormalizePortfolioImages(request.getPortfolioImages());
+
         engineer.updateInfo(
                 request.getEngineerName().trim(),
                 request.getHeadline().trim(),
@@ -169,8 +142,8 @@ public class EngineerService {
                 region
         );
 
-        replaceCategories(engineer, request.getCategories());
-        replacePortfolioImages(engineer, request.getPortfolioImages());
+        replaceCategories(engineer, categories);
+        replacePortfolioImages(engineer, normalizedPortfolioImages);
     }
 
     /**
@@ -299,33 +272,67 @@ public class EngineerService {
         }
     }
 
-    private void replaceCategories(Engineer engineer, List<String> categoryNames) {
+    private List<Category> validateAndGetCategories(List<String> categoryNames) {
+        if (categoryNames == null || categoryNames.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY);
+        }
+
+        List<String> normalizedCategoryNames = categoryNames.stream()
+                .map(this::trimToNull)
+                .filter(category -> category != null)
+                .distinct()
+                .toList();
+
+        if (normalizedCategoryNames.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY);
+        }
+
+        List<Category> categories =
+                categoryRepository.findByCategoryNameIn(normalizedCategoryNames);
+        if (categories.size() != normalizedCategoryNames.size()) {
+            throw new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY);
+        }
+
+        return categories;
+    }
+
+    private List<String> validateAndNormalizePortfolioImages(List<String> portfolioImages) {
+        if (portfolioImages == null || portfolioImages.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+        }
+
+        List<String> normalizedPortfolioImages = portfolioImages.stream()
+                .map(this::trimToNull)
+                .filter(image -> image != null)
+                .distinct()
+                .toList();
+
+        if (normalizedPortfolioImages.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+        }
+
+        return normalizedPortfolioImages;
+    }
+
+    private void replaceCategories(Engineer engineer, List<Category> categories) {
         engineerCategoryRepository.deleteAllByEngineer(engineer);
         engineerCategoryRepository.flush();
 
-        List<EngineerCategory> categories = categoryNames.stream()
-                .map(String::trim)
-                .map(this::findCategoryByName)
+        List<EngineerCategory> mappings = categories.stream()
                 .map(category -> EngineerCategory.create(engineer, category))
                 .toList();
 
-        engineerCategoryRepository.saveAll(categories);
+        engineerCategoryRepository.saveAll(mappings);
     }
 
     private void replacePortfolioImages(Engineer engineer, List<String> portfolioImages) {
         portfolioRepository.deleteAllByEngineer(engineer);
 
         List<Portfolio> images = portfolioImages.stream()
-                .map(String::trim)
                 .map(imageUrl -> Portfolio.create(engineer, imageUrl))
                 .toList();
 
         portfolioRepository.saveAll(images);
-    }
-
-    private Category findCategoryByName(String categoryName) {
-        return categoryRepository.findByCategoryName(categoryName)
-                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY));
     }
 
     private String trimToNull(String value) {

@@ -536,6 +536,105 @@ class EngineerServiceTest {
         }
 
         @Test
+        @DisplayName("중복되거나 내용이 없는 시공 분야와 포트폴리오는 정리하여 수정할 수 있다")
+        void updateEngineer_normalizesCategoriesAndPortfolioImages() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
+            engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
+            portfolioRepository.save(Portfolio.create(engineer, "old-portfolio.jpg"));
+
+            EngineerRequestDto request = createRequestBuilder()
+                    .categories(List.of(" 주방 ", " ", "주방", "타일"))
+                    .portfolioImages(List.of(
+                            " new-portfolio.jpg ",
+                            " ",
+                            "new-portfolio.jpg",
+                            "second-portfolio.jpg"
+                    ))
+                    .phone("010-1111-2222")
+                    .build();
+
+            // when
+            engineerService.updateEngineer(engineer.getEngineerId(), request);
+
+            // then
+            List<EngineerCategory> updatedCategories =
+                    engineerCategoryRepository.findByEngineer_EngineerIdIn(List.of(engineer.getEngineerId()));
+            List<Portfolio> updatedPortfolios =
+                    portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId());
+
+            assertThat(updatedCategories)
+                    .extracting(mapping -> mapping.getCategory().getCategoryName())
+                    .containsExactlyInAnyOrder("주방", "타일");
+            assertThat(updatedPortfolios)
+                    .extracting(Portfolio::getPortfolioImage)
+                    .containsExactly("new-portfolio.jpg", "second-portfolio.jpg");
+        }
+
+        @ParameterizedTest
+        @NullAndEmptySource
+        @DisplayName("시공 분야가 없으면 기술자 정보를 수정할 수 없다")
+        void updateEngineer_categoriesAreMissing(List<String> categories) {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
+            engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
+            EngineerRequestDto request = createRequestBuilder()
+                    .categories(categories)
+                    .phone("010-1111-2222")
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.updateEngineer(engineer.getEngineerId(), request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_ENGINEER_CATEGORY);
+
+            assertThat(engineerCategoryRepository
+                    .findByEngineer_EngineerIdIn(List.of(engineer.getEngineerId())))
+                    .hasSize(1);
+        }
+
+        @ParameterizedTest
+        @NullAndEmptySource
+        @DisplayName("포트폴리오 이미지가 없으면 기술자 정보를 수정할 수 없다")
+        void updateEngineer_portfolioImagesAreMissing(List<String> portfolioImages) {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            portfolioRepository.save(Portfolio.create(engineer, "old-portfolio.jpg"));
+            EngineerRequestDto request = createRequestBuilder()
+                    .portfolioImages(portfolioImages)
+                    .phone("010-1111-2222")
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.updateEngineer(engineer.getEngineerId(), request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+
+            assertThat(portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId()))
+                    .extracting(Portfolio::getPortfolioImage)
+                    .containsExactly("old-portfolio.jpg");
+        }
+
+        @Test
         @DisplayName("기존 전화번호를 유지하면서 기술자 정보를 수정할 수 있다")
         void updateEngineer_samePhone() {
             // given
