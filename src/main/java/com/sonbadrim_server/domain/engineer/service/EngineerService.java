@@ -259,9 +259,24 @@ public class EngineerService {
      * 기술자 전화번호 중복 여부를 확인한다.
      */
     @Transactional(readOnly = true)
-    public PhoneDuplicateCheckResponseDto checkPhoneDuplicate(String phone) {
+    public PhoneDuplicateCheckResponseDto checkPhoneDuplicate(String phone, Long engineerId) {
         String normalizedPhone = normalizePhone(phone);
-        boolean duplicated = engineerRepository.existsByPhone(normalizedPhone);
+
+        if (engineerId == null) {
+            return new PhoneDuplicateCheckResponseDto(
+                    engineerRepository.existsByPhone(normalizedPhone)
+            );
+        }
+
+        Engineer engineer = engineerRepository.findById(engineerId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+        User currentUser = userService.getCurrentUser();
+        validateOwner(engineer, currentUser);
+
+        boolean duplicated = engineerRepository.existsByPhoneAndEngineerIdNot(
+                normalizedPhone,
+                engineerId
+        );
 
         return new PhoneDuplicateCheckResponseDto(duplicated);
     }

@@ -83,8 +83,12 @@ public class EngineerController {
 
     @Operation(summary = "기술자 전화번호 중복 확인", description = "기술자 등록/수정 전에 전화번호가 이미 사용 중인지 확인합니다.")
     @GetMapping("/phone/check")
-    public ResponseEntity<?> checkPhoneDuplicate(@RequestParam String phone) {
-        PhoneDuplicateCheckResponseDto response = engineerService.checkPhoneDuplicate(phone);
+    public ResponseEntity<?> checkPhoneDuplicate(
+            @RequestParam String phone,
+            @RequestParam(required = false) Long engineerId
+    ) {
+        PhoneDuplicateCheckResponseDto response =
+                engineerService.checkPhoneDuplicate(phone, engineerId);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 

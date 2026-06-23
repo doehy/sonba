@@ -1148,7 +1148,7 @@ class EngineerServiceTest {
 
             // when
             PhoneDuplicateCheckResponseDto result =
-                    engineerService.checkPhoneDuplicate("010-1234-5678");
+                    engineerService.checkPhoneDuplicate("010-1234-5678", null);
 
             // then
             assertThat(result.isDuplicated()).isTrue();
@@ -1159,7 +1159,7 @@ class EngineerServiceTest {
         void checkPhoneDuplicate_notDuplicated() {
             // when
             PhoneDuplicateCheckResponseDto result =
-                    engineerService.checkPhoneDuplicate("010-1234-5678");
+                    engineerService.checkPhoneDuplicate("010-1234-5678", null);
 
             // then
             assertThat(result.isDuplicated()).isFalse();
@@ -1169,10 +1169,83 @@ class EngineerServiceTest {
         @DisplayName("올바르지 않은 전화번호로 중복 여부를 확인할 수 없다")
         void checkPhoneDuplicate_invalidPhone() {
             // when & then
-            assertThatThrownBy(() -> engineerService.checkPhoneDuplicate("1234"))
+            assertThatThrownBy(() -> engineerService.checkPhoneDuplicate("1234", null))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.INVALID_PHONE_NUMBER);
+        }
+
+        @Test
+        @DisplayName("수정할 때 본인의 기존 전화번호는 중복이 아닌 것으로 확인된다")
+        void checkPhoneDuplicate_excludesOwnEngineer() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01012345678",
+                    "기존기술자",
+                    "기존 소개"
+            );
+
+            // when
+            PhoneDuplicateCheckResponseDto result =
+                    engineerService.checkPhoneDuplicate(
+                            "010-1234-5678",
+                            engineer.getEngineerId()
+                    );
+
+            // then
+            assertThat(result.isDuplicated()).isFalse();
+        }
+
+        @Test
+        @DisplayName("수정할 때 다른 기술자의 전화번호는 중복으로 확인된다")
+        void checkPhoneDuplicate_detectsAnotherEngineerPhone() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "본인기술자",
+                    "본인 소개"
+            );
+            User anotherUser = saveUser(900000000002L, "다른사용자");
+            saveEngineer(
+                    anotherUser,
+                    "01033334444",
+                    "다른기술자",
+                    "다른 소개"
+            );
+
+            // when
+            PhoneDuplicateCheckResponseDto result =
+                    engineerService.checkPhoneDuplicate(
+                            "010-3333-4444",
+                            engineer.getEngineerId()
+                    );
+
+            // then
+            assertThat(result.isDuplicated()).isTrue();
+        }
+
+        @Test
+        @DisplayName("다른 사용자의 기술자를 제외하여 전화번호 중복 여부를 확인할 수 없다")
+        void checkPhoneDuplicate_notOwner() {
+            // given
+            User anotherUser = saveUser(900000000002L, "다른사용자");
+            Engineer engineer = saveEngineer(
+                    anotherUser,
+                    "01011112222",
+                    "다른기술자",
+                    "다른 소개"
+            );
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.checkPhoneDuplicate(
+                    "010-1234-5678",
+                    engineer.getEngineerId()
+            ))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.CANNOT_MODIFY_ENGINEER);
         }
     }
 

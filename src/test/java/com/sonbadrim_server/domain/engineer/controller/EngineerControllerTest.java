@@ -726,7 +726,7 @@ class EngineerControllerTest {
         @DisplayName("이미 등록된 전화번호의 중복 여부를 확인할 수 있다")
         void checkPhoneDuplicate_duplicated() throws Exception {
             // given
-            given(engineerService.checkPhoneDuplicate("010-1234-5678"))
+            given(engineerService.checkPhoneDuplicate("010-1234-5678", null))
                     .willReturn(new PhoneDuplicateCheckResponseDto(true));
 
             // when & then
@@ -736,14 +736,14 @@ class EngineerControllerTest {
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.data.duplicated").value(true));
 
-            verify(engineerService).checkPhoneDuplicate("010-1234-5678");
+            verify(engineerService).checkPhoneDuplicate("010-1234-5678", null);
         }
 
         @Test
         @DisplayName("등록되지 않은 전화번호의 중복 여부를 확인할 수 있다")
         void checkPhoneDuplicate_notDuplicated() throws Exception {
             // given
-            given(engineerService.checkPhoneDuplicate("010-9999-8888"))
+            given(engineerService.checkPhoneDuplicate("010-9999-8888", null))
                     .willReturn(new PhoneDuplicateCheckResponseDto(false));
 
             // when & then
@@ -753,7 +753,25 @@ class EngineerControllerTest {
                     .andExpect(jsonPath("$.success").value(true))
                     .andExpect(jsonPath("$.data.duplicated").value(false));
 
-            verify(engineerService).checkPhoneDuplicate("010-9999-8888");
+            verify(engineerService).checkPhoneDuplicate("010-9999-8888", null);
+        }
+
+        @Test
+        @DisplayName("수정할 기술자를 제외하여 전화번호 중복 여부를 확인할 수 있다")
+        void checkPhoneDuplicate_excludesEngineer() throws Exception {
+            // given
+            given(engineerService.checkPhoneDuplicate("010-1234-5678", 7L))
+                    .willReturn(new PhoneDuplicateCheckResponseDto(false));
+
+            // when & then
+            mockMvc.perform(get("/engineers/phone/check")
+                            .param("phone", "010-1234-5678")
+                            .param("engineerId", "7"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.duplicated").value(false));
+
+            verify(engineerService).checkPhoneDuplicate("010-1234-5678", 7L);
         }
     }
 
