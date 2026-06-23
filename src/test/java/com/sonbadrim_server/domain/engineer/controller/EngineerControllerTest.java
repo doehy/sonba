@@ -5,6 +5,7 @@ import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.InterestedEngineerItemResponseDto;
+import com.sonbadrim_server.domain.engineer.dto.response.PhoneDuplicateCheckResponseDto;
 import com.sonbadrim_server.domain.engineer.service.EngineerService;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.global.exception.CustomException;
@@ -652,6 +653,45 @@ class EngineerControllerTest {
             Pageable pageable = captor.getValue();
             assertThat(pageable.getPageNumber()).isZero();
             assertThat(pageable.getPageSize()).isEqualTo(15);
+        }
+    }
+
+    @Nested
+    @DisplayName("기술자 전화번호 중복 확인")
+    class CheckPhoneDuplicate {
+
+        @Test
+        @DisplayName("이미 등록된 전화번호의 중복 여부를 확인할 수 있다")
+        void checkPhoneDuplicate_duplicated() throws Exception {
+            // given
+            given(engineerService.checkPhoneDuplicate("010-1234-5678"))
+                    .willReturn(new PhoneDuplicateCheckResponseDto(true));
+
+            // when & then
+            mockMvc.perform(get("/engineers/phone/check")
+                            .param("phone", "010-1234-5678"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.duplicated").value(true));
+
+            verify(engineerService).checkPhoneDuplicate("010-1234-5678");
+        }
+
+        @Test
+        @DisplayName("등록되지 않은 전화번호의 중복 여부를 확인할 수 있다")
+        void checkPhoneDuplicate_notDuplicated() throws Exception {
+            // given
+            given(engineerService.checkPhoneDuplicate("010-9999-8888"))
+                    .willReturn(new PhoneDuplicateCheckResponseDto(false));
+
+            // when & then
+            mockMvc.perform(get("/engineers/phone/check")
+                            .param("phone", "010-9999-8888"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.duplicated").value(false));
+
+            verify(engineerService).checkPhoneDuplicate("010-9999-8888");
         }
     }
 

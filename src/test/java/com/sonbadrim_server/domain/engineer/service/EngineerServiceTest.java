@@ -5,6 +5,7 @@ import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.InterestedEngineerItemResponseDto;
+import com.sonbadrim_server.domain.engineer.dto.response.PhoneDuplicateCheckResponseDto;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
 import com.sonbadrim_server.domain.engineer.entity.InterestedEngineer;
@@ -1028,6 +1029,51 @@ class EngineerServiceTest {
             assertThat(result.getContent())
                     .extracting(InterestedEngineerItemResponseDto::getProfileImage)
                     .containsOnly("old-profile.jpg");
+        }
+    }
+
+    @Nested
+    @DisplayName("기술자 전화번호 중복 확인")
+    class CheckPhoneDuplicate {
+
+        @Test
+        @DisplayName("이미 등록된 전화번호는 중복으로 확인된다")
+        void checkPhoneDuplicate_duplicated() {
+            // given
+            saveEngineer(
+                    currentUser,
+                    "01012345678",
+                    "기존기술자",
+                    "기존 소개"
+            );
+
+            // when
+            PhoneDuplicateCheckResponseDto result =
+                    engineerService.checkPhoneDuplicate("010-1234-5678");
+
+            // then
+            assertThat(result.isDuplicated()).isTrue();
+        }
+
+        @Test
+        @DisplayName("등록되지 않은 전화번호는 중복이 아닌 것으로 확인된다")
+        void checkPhoneDuplicate_notDuplicated() {
+            // when
+            PhoneDuplicateCheckResponseDto result =
+                    engineerService.checkPhoneDuplicate("010-1234-5678");
+
+            // then
+            assertThat(result.isDuplicated()).isFalse();
+        }
+
+        @Test
+        @DisplayName("올바르지 않은 전화번호로 중복 여부를 확인할 수 없다")
+        void checkPhoneDuplicate_invalidPhone() {
+            // when & then
+            assertThatThrownBy(() -> engineerService.checkPhoneDuplicate("1234"))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_PHONE_NUMBER);
         }
     }
 
