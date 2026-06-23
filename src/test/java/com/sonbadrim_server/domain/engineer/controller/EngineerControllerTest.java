@@ -429,6 +429,37 @@ class EngineerControllerTest {
                     .isEqualTo(Sort.Direction.DESC);
         }
 
+        @ParameterizedTest
+        @ValueSource(ints = {0, 101, 10000})
+        @DisplayName("허용되지 않는 페이지 크기로 기술자 목록을 조회할 수 없다")
+        void getEngineerList_invalidSize(int size) throws Exception {
+            // when & then
+            mockMvc.perform(get("/engineers")
+                            .param("size", String.valueOf(size)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("GLOBAL_400_1"))
+                    .andExpect(jsonPath("$.data.validation.size").exists());
+
+            verify(engineerService, never())
+                    .getEngineerList(any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("음수 페이지 번호로 기술자 목록을 조회할 수 없다")
+        void getEngineerList_negativePage() throws Exception {
+            // when & then
+            mockMvc.perform(get("/engineers")
+                            .param("page", "-1"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("GLOBAL_400_1"))
+                    .andExpect(jsonPath("$.data.validation.page").exists());
+
+            verify(engineerService, never())
+                    .getEngineerList(any(Pageable.class));
+        }
+
         private Pageable captureRequestedPageable() {
             ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
             verify(engineerService).getEngineerList(captor.capture());
@@ -653,6 +684,37 @@ class EngineerControllerTest {
             Pageable pageable = captor.getValue();
             assertThat(pageable.getPageNumber()).isZero();
             assertThat(pageable.getPageSize()).isEqualTo(15);
+        }
+
+        @ParameterizedTest
+        @ValueSource(ints = {0, 101, 10000})
+        @DisplayName("허용되지 않는 페이지 크기로 관심 기술자 목록을 조회할 수 없다")
+        void getInterestedEngineers_invalidSize(int size) throws Exception {
+            // when & then
+            mockMvc.perform(get("/engineers/interests")
+                            .param("size", String.valueOf(size)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("GLOBAL_400_1"))
+                    .andExpect(jsonPath("$.data.validation.size").exists());
+
+            verify(engineerService, never())
+                    .getInterestedEngineers(any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("음수 페이지 번호로 관심 기술자 목록을 조회할 수 없다")
+        void getInterestedEngineers_negativePage() throws Exception {
+            // when & then
+            mockMvc.perform(get("/engineers/interests")
+                            .param("page", "-1"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("GLOBAL_400_1"))
+                    .andExpect(jsonPath("$.data.validation.page").exists());
+
+            verify(engineerService, never())
+                    .getInterestedEngineers(any(Pageable.class));
         }
     }
 

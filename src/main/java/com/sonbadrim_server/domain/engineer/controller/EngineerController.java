@@ -11,6 +11,8 @@ import com.sonbadrim_server.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -18,9 +20,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "기술자", description = "기술자 등록/조회 API")
+@Validated
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/engineers")
@@ -46,8 +50,13 @@ public class EngineerController {
     @Operation(summary = "기술자 목록 조회", description = "기술자 목록을 페이지 단위로 조회합니다.")
     @GetMapping
     public ResponseEntity<?> getEngineerList(
-            @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size
+            @RequestParam(name = "page", defaultValue = "0")
+            @Min(value = 0, message = "페이지 번호는 0 이상이어야 합니다.")
+            int page,
+            @RequestParam(name = "size", defaultValue = "20")
+            @Min(value = 1, message = "페이지 크기는 1 이상이어야 합니다.")
+            @Max(value = 100, message = "페이지 크기는 100 이하여야 합니다.")
+            int size
     ) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<EngineerSummaryResponseDto> engineerList = engineerService.getEngineerList(pageable);
@@ -58,8 +67,13 @@ public class EngineerController {
     @Operation(summary = "관심 기술자 목록 조회", description = "현재 로그인 사용자가 관심 목록에 추가한 기술자를 페이지 단위로 조회합니다.")
     @GetMapping("/interests")
     public ResponseEntity<?> getInterestedEngineers(
-            @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "15") int size
+            @RequestParam(name = "page", defaultValue = "0")
+            @Min(value = 0, message = "페이지 번호는 0 이상이어야 합니다.")
+            int page,
+            @RequestParam(name = "size", defaultValue = "15")
+            @Min(value = 1, message = "페이지 크기는 1 이상이어야 합니다.")
+            @Max(value = 100, message = "페이지 크기는 100 이하여야 합니다.")
+            int size
     ) {
         Pageable pageable = PageRequest.of(page, size);
         Page<InterestedEngineerItemResponseDto> engineerList = engineerService.getInterestedEngineers(pageable);
