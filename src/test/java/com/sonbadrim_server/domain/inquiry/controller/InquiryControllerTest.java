@@ -1,9 +1,13 @@
 package com.sonbadrim_server.domain.inquiry.controller;
 
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryDetailResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryListItemResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryListResponseDto;
+import com.sonbadrim_server.domain.inquiry.entity.InquiryStatus;
 import com.sonbadrim_server.domain.inquiry.service.InquiryService;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
+import com.sonbadrim_server.global.exception.CustomException;
+import com.sonbadrim_server.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -86,6 +90,50 @@ class InquiryControllerTest {
                     .andExpect(jsonPath("$.data.hasNext").value(true));
 
             verify(inquiryService).getInquiries(2, 5);
+        }
+    }
+
+    @Nested
+    @DisplayName("문의 상세 조회")
+    class GetInquiryDetail {
+
+        @Test
+        @DisplayName("문의 참여자는 문의 상세 정보를 조회할 수 있다")
+        void getInquiryDetail_success() throws Exception {
+            // given
+            InquiryDetailResponseDto response = new InquiryDetailResponseDto(
+                    7L,
+                    InquiryStatus.OPEN,
+                    1L,
+                    2L
+            );
+            given(inquiryService.getInquiryDetail(7L))
+                    .willReturn(response);
+
+            // when & then
+            mockMvc.perform(get("/inquiries/{inquiryId}", 7L))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.inquiryId").value(7L))
+                    .andExpect(jsonPath("$.data.status").value("OPEN"))
+                    .andExpect(jsonPath("$.data.requesterUserId").value(1L))
+                    .andExpect(jsonPath("$.data.targetUserId").value(2L));
+
+            verify(inquiryService).getInquiryDetail(7L);
+        }
+
+        @Test
+        @DisplayName("조회할 수 없는 문의 상세 정보는 찾을 수 없음으로 응답한다")
+        void getInquiryDetail_inquiryNotFound() throws Exception {
+            // given
+            given(inquiryService.getInquiryDetail(999L))
+                    .willThrow(new CustomException(ErrorCode.INQUIRY_NOT_FOUND));
+
+            // when & then
+            mockMvc.perform(get("/inquiries/{inquiryId}", 999L))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("INQUIRY_NOT_FOUND"));
         }
     }
 }

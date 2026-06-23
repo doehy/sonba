@@ -2,9 +2,11 @@ package com.sonbadrim_server.domain.inquiry.service;
 
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryDetailResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryListResponseDto;
 import com.sonbadrim_server.domain.inquiry.entity.Inquiry;
 import com.sonbadrim_server.domain.inquiry.entity.InquiryMessage;
+import com.sonbadrim_server.domain.inquiry.entity.InquiryStatus;
 import com.sonbadrim_server.domain.inquiry.repository.InquiryMessageRepository;
 import com.sonbadrim_server.domain.inquiry.repository.InquiryRepository;
 import com.sonbadrim_server.domain.region.entity.Region;
@@ -14,6 +16,8 @@ import com.sonbadrim_server.domain.user.entity.UserRole;
 import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.domain.user.service.UserService;
+import com.sonbadrim_server.global.exception.CustomException;
+import com.sonbadrim_server.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,6 +31,7 @@ import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 @SpringBootTest
@@ -184,6 +189,71 @@ class InquiryServiceTest {
             // then
             assertThat(result.getItems()).hasSize(1);
             assertThat(result.isHasNext()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("문의 상세 조회")
+    class GetInquiryDetail {
+
+        @Test
+        @DisplayName("문의 요청자는 문의 상세 정보를 조회할 수 있다")
+        void getInquiryDetail_requester() {
+            // given
+            User target = saveUser(900000000002L, "문의대상");
+            Inquiry inquiry = saveInquiry(currentUser, target);
+
+            // when
+            InquiryDetailResponseDto result =
+                    inquiryService.getInquiryDetail(inquiry.getInquiryId());
+
+            // then
+            assertThat(result.getInquiryId()).isEqualTo(inquiry.getInquiryId());
+            assertThat(result.getStatus()).isEqualTo(InquiryStatus.OPEN);
+            assertThat(result.getRequesterUserId()).isEqualTo(currentUser.getUserId());
+            assertThat(result.getTargetUserId()).isEqualTo(target.getUserId());
+        }
+
+        @Test
+        @DisplayName("문의 대상자는 문의 상세 정보를 조회할 수 있다")
+        void getInquiryDetail_target() {
+            // given
+            User requester = saveUser(900000000002L, "문의요청자");
+            Inquiry inquiry = saveInquiry(requester, currentUser);
+
+            // when
+            InquiryDetailResponseDto result =
+                    inquiryService.getInquiryDetail(inquiry.getInquiryId());
+
+            // then
+            assertThat(result.getInquiryId()).isEqualTo(inquiry.getInquiryId());
+            assertThat(result.getRequesterUserId()).isEqualTo(requester.getUserId());
+            assertThat(result.getTargetUserId()).isEqualTo(currentUser.getUserId());
+        }
+
+        @Test
+        @DisplayName("문의 참여자가 아닌 사용자는 문의 상세 정보를 조회할 수 없다")
+        void getInquiryDetail_notParticipant() {
+            // given
+            User requester = saveUser(900000000002L, "문의요청자");
+            User target = saveUser(900000000003L, "문의대상");
+            Inquiry inquiry = saveInquiry(requester, target);
+
+            // when & then
+            assertThatThrownBy(() -> inquiryService.getInquiryDetail(inquiry.getInquiryId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 문의 상세 정보는 조회할 수 없다")
+        void getInquiryDetail_inquiryNotFound() {
+            // when & then
+            assertThatThrownBy(() -> inquiryService.getInquiryDetail(999L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
         }
     }
 
