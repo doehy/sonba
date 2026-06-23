@@ -4,6 +4,7 @@ import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
+import com.sonbadrim_server.domain.engineer.dto.response.InterestedEngineerItemResponseDto;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
 import com.sonbadrim_server.domain.engineer.entity.InterestedEngineer;
@@ -848,6 +849,185 @@ class EngineerServiceTest {
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.ENGINEER_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("관심 기술자 추가")
+    class AddInterestedEngineer {
+
+        @Test
+        @DisplayName("다른 기술자를 관심 기술자로 등록할 수 있다")
+        void addInterestedEngineer_success() {
+            // given
+            User engineerUser = saveUser(900000000002L, "기술자사용자");
+            Engineer engineer = saveEngineer(
+                    engineerUser,
+                    "01011112222",
+                    "관심기술자",
+                    "관심 소개"
+            );
+
+            // when
+            engineerService.addInterestedEngineer(engineer.getEngineerId());
+
+            // then
+            assertThat(interestedEngineerRepository
+                    .existsByUser_UserIdAndEngineer_EngineerId(
+                            currentUser.getUserId(),
+                            engineer.getEngineerId()
+                    ))
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("본인을 관심 기술자로 등록할 수 없다")
+        void addInterestedEngineer_ownEngineer() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "본인기술자",
+                    "본인 소개"
+            );
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.addInterestedEngineer(engineer.getEngineerId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.CANNOT_INTEREST_OWN_ENGINEER);
+
+            assertThat(interestedEngineerRepository.count()).isZero();
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자를 관심 기술자로 등록할 수 없다")
+        void addInterestedEngineer_engineerNotFound() {
+            // when & then
+            assertThatThrownBy(() -> engineerService.addInterestedEngineer(999L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("이미 등록한 관심 기술자를 다시 등록해도 중복 저장되지 않는다")
+        void addInterestedEngineer_alreadyExists() {
+            // given
+            User engineerUser = saveUser(900000000002L, "기술자사용자");
+            Engineer engineer = saveEngineer(
+                    engineerUser,
+                    "01011112222",
+                    "관심기술자",
+                    "관심 소개"
+            );
+            interestedEngineerRepository.save(
+                    InterestedEngineer.create(currentUser, engineer)
+            );
+
+            // when
+            engineerService.addInterestedEngineer(engineer.getEngineerId());
+
+            // then
+            assertThat(interestedEngineerRepository.count()).isEqualTo(1);
+        }
+    }
+
+    @Nested
+    @DisplayName("관심 기술자 삭제")
+    class RemoveInterestedEngineer {
+
+        @Test
+        @DisplayName("관심 기술자 목록에서 기술자를 삭제할 수 있다")
+        void removeInterestedEngineer_success() {
+            // given
+            User engineerUser = saveUser(900000000002L, "기술자사용자");
+            Engineer engineer = saveEngineer(
+                    engineerUser,
+                    "01011112222",
+                    "관심기술자",
+                    "관심 소개"
+            );
+            interestedEngineerRepository.save(
+                    InterestedEngineer.create(currentUser, engineer)
+            );
+
+            // when
+            engineerService.removeInterestedEngineer(engineer.getEngineerId());
+
+            // then
+            assertThat(interestedEngineerRepository
+                    .existsByUser_UserIdAndEngineer_EngineerId(
+                            currentUser.getUserId(),
+                            engineer.getEngineerId()
+                    ))
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자는 관심 기술자 목록에서 삭제할 수 없다")
+        void removeInterestedEngineer_engineerNotFound() {
+            // when & then
+            assertThatThrownBy(() -> engineerService.removeInterestedEngineer(999L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("관심 기술자 목록 조회")
+    class GetInterestedEngineers {
+
+        @Test
+        @DisplayName("현재 사용자가 등록한 관심 기술자 목록을 페이지 단위로 조회할 수 있다")
+        void getInterestedEngineers_success() {
+            // given
+            User firstEngineerUser = saveUser(900000000002L, "첫번째기술자사용자");
+            Engineer firstEngineer = saveEngineer(
+                    firstEngineerUser,
+                    "01011112222",
+                    "첫번째관심기술자",
+                    "첫 번째 소개"
+            );
+            User secondEngineerUser = saveUser(900000000003L, "두번째기술자사용자");
+            Engineer secondEngineer = saveEngineer(
+                    secondEngineerUser,
+                    "01033334444",
+                    "두번째관심기술자",
+                    "두 번째 소개"
+            );
+            User anotherUser = saveUser(900000000004L, "다른사용자");
+
+            interestedEngineerRepository.saveAll(List.of(
+                    InterestedEngineer.create(currentUser, firstEngineer),
+                    InterestedEngineer.create(currentUser, secondEngineer),
+                    InterestedEngineer.create(anotherUser, firstEngineer)
+            ));
+
+            // when
+            Page<InterestedEngineerItemResponseDto> result =
+                    engineerService.getInterestedEngineers(PageRequest.of(0, 15));
+
+            // then
+            assertThat(result.getTotalElements()).isEqualTo(2);
+            assertThat(result.getNumber()).isZero();
+            assertThat(result.getSize()).isEqualTo(15);
+            assertThat(result.getContent())
+                    .extracting(InterestedEngineerItemResponseDto::getEngineerId)
+                    .containsExactlyInAnyOrder(
+                            firstEngineer.getEngineerId(),
+                            secondEngineer.getEngineerId()
+                    );
+            assertThat(result.getContent())
+                    .extracting(InterestedEngineerItemResponseDto::getEngineerName)
+                    .containsExactlyInAnyOrder(
+                            "첫번째관심기술자",
+                            "두번째관심기술자"
+                    );
+            assertThat(result.getContent())
+                    .extracting(InterestedEngineerItemResponseDto::getProfileImage)
+                    .containsOnly("old-profile.jpg");
         }
     }
 

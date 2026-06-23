@@ -4,6 +4,7 @@ import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
+import com.sonbadrim_server.domain.engineer.dto.response.InterestedEngineerItemResponseDto;
 import com.sonbadrim_server.domain.engineer.service.EngineerService;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.global.exception.CustomException;
@@ -533,6 +534,124 @@ class EngineerControllerTest {
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.success").value(false))
                     .andExpect(jsonPath("$.data.code").value("CANNOT_UNJOIN_ENGINEER"));
+        }
+    }
+
+    @Nested
+    @DisplayName("관심 기술자 추가")
+    class AddInterestedEngineer {
+
+        @Test
+        @DisplayName("기술자를 관심 기술자로 등록할 수 있다")
+        void addInterestedEngineer_success() throws Exception {
+            // when & then
+            mockMvc.perform(post("/engineers/{engineerId}/interest", 7L))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data").value("관심 기술자에 추가되었습니다."));
+
+            verify(engineerService).addInterestedEngineer(7L);
+        }
+
+        @Test
+        @DisplayName("본인을 관심 기술자로 등록할 수 없다")
+        void addInterestedEngineer_ownEngineer() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.CANNOT_INTEREST_OWN_ENGINEER))
+                    .given(engineerService)
+                    .addInterestedEngineer(7L);
+
+            // when & then
+            mockMvc.perform(post("/engineers/{engineerId}/interest", 7L))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("CANNOT_INTEREST_OWN_ENGINEER"));
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자를 관심 기술자로 등록할 수 없다")
+        void addInterestedEngineer_engineerNotFound() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.ENGINEER_NOT_FOUND))
+                    .given(engineerService)
+                    .addInterestedEngineer(999L);
+
+            // when & then
+            mockMvc.perform(post("/engineers/{engineerId}/interest", 999L))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("ENGINEER_NOT_FOUND"));
+        }
+    }
+
+    @Nested
+    @DisplayName("관심 기술자 삭제")
+    class RemoveInterestedEngineer {
+
+        @Test
+        @DisplayName("관심 기술자 목록에서 기술자를 삭제할 수 있다")
+        void removeInterestedEngineer_success() throws Exception {
+            // when & then
+            mockMvc.perform(delete("/engineers/{engineerId}/interest", 7L))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data").value("관심 기술자에서 삭제되었습니다."));
+
+            verify(engineerService).removeInterestedEngineer(7L);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자는 관심 기술자 목록에서 삭제할 수 없다")
+        void removeInterestedEngineer_engineerNotFound() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.ENGINEER_NOT_FOUND))
+                    .given(engineerService)
+                    .removeInterestedEngineer(999L);
+
+            // when & then
+            mockMvc.perform(delete("/engineers/{engineerId}/interest", 999L))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("ENGINEER_NOT_FOUND"));
+        }
+    }
+
+    @Nested
+    @DisplayName("관심 기술자 목록 조회")
+    class GetInterestedEngineers {
+
+        @Test
+        @DisplayName("관심 기술자 목록을 기본 페이지 설정으로 조회할 수 있다")
+        void getInterestedEngineers_defaultPageable() throws Exception {
+            // given
+            InterestedEngineerItemResponseDto engineer =
+                    new InterestedEngineerItemResponseDto(
+                            7L,
+                            "관심기술자",
+                            "profile.jpg"
+                    );
+            given(engineerService.getInterestedEngineers(any(Pageable.class)))
+                    .willReturn(new PageImpl<>(
+                            List.of(engineer),
+                            PageRequest.of(0, 15),
+                            1
+                    ));
+
+            // when & then
+            mockMvc.perform(get("/engineers/interests"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.content[0].engineerId").value(7L))
+                    .andExpect(jsonPath("$.data.content[0].engineerName").value("관심기술자"))
+                    .andExpect(jsonPath("$.data.content[0].profileImage").value("profile.jpg"))
+                    .andExpect(jsonPath("$.data.totalElements").value(1));
+
+            ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+            verify(engineerService).getInterestedEngineers(captor.capture());
+
+            Pageable pageable = captor.getValue();
+            assertThat(pageable.getPageNumber()).isZero();
+            assertThat(pageable.getPageSize()).isEqualTo(15);
         }
     }
 
