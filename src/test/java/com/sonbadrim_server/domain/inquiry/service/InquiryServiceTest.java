@@ -411,6 +411,91 @@ class InquiryServiceTest {
     }
 
     @Nested
+    @DisplayName("문의방 나가기")
+    class LeaveInquiry {
+
+        @Test
+        @DisplayName("문의 요청자는 문의방을 나갈 수 있다")
+        void leaveInquiry_requester() {
+            // given
+            User target = saveUser(900000000002L, "문의대상");
+            Inquiry inquiry = saveInquiry(currentUser, target);
+
+            // when
+            inquiryService.leaveInquiry(inquiry.getInquiryId());
+
+            // then
+            Inquiry updatedInquiry = inquiryRepository.findById(inquiry.getInquiryId())
+                    .orElseThrow();
+            assertThat(updatedInquiry.getRequesterLeftAt()).isNotNull();
+            assertThat(updatedInquiry.getTargetLeftAt()).isNull();
+            assertThat(updatedInquiry.getInquiryStatus()).isEqualTo(InquiryStatus.OPEN);
+        }
+
+        @Test
+        @DisplayName("문의 대상자는 문의방을 나갈 수 있다")
+        void leaveInquiry_target() {
+            // given
+            User requester = saveUser(900000000002L, "문의요청자");
+            Inquiry inquiry = saveInquiry(requester, currentUser);
+
+            // when
+            inquiryService.leaveInquiry(inquiry.getInquiryId());
+
+            // then
+            Inquiry updatedInquiry = inquiryRepository.findById(inquiry.getInquiryId())
+                    .orElseThrow();
+            assertThat(updatedInquiry.getRequesterLeftAt()).isNull();
+            assertThat(updatedInquiry.getTargetLeftAt()).isNotNull();
+            assertThat(updatedInquiry.getInquiryStatus()).isEqualTo(InquiryStatus.OPEN);
+        }
+
+        @Test
+        @DisplayName("양쪽 사용자가 모두 나가면 문의방은 종료된다")
+        void leaveInquiry_closesWhenBothParticipantsLeave() {
+            // given
+            User target = saveUser(900000000002L, "문의대상");
+            Inquiry inquiry = saveInquiry(currentUser, target);
+            inquiry.leave(target.getUserId());
+
+            // when
+            inquiryService.leaveInquiry(inquiry.getInquiryId());
+
+            // then
+            Inquiry updatedInquiry = inquiryRepository.findById(inquiry.getInquiryId())
+                    .orElseThrow();
+            assertThat(updatedInquiry.getRequesterLeftAt()).isNotNull();
+            assertThat(updatedInquiry.getTargetLeftAt()).isNotNull();
+            assertThat(updatedInquiry.getInquiryStatus()).isEqualTo(InquiryStatus.CLOSED);
+        }
+
+        @Test
+        @DisplayName("문의 참여자가 아닌 사용자는 문의방을 나갈 수 없다")
+        void leaveInquiry_notParticipant() {
+            // given
+            User requester = saveUser(900000000002L, "문의요청자");
+            User target = saveUser(900000000003L, "문의대상");
+            Inquiry inquiry = saveInquiry(requester, target);
+
+            // when & then
+            assertThatThrownBy(() -> inquiryService.leaveInquiry(inquiry.getInquiryId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 문의방은 나갈 수 없다")
+        void leaveInquiry_inquiryNotFound() {
+            // when & then
+            assertThatThrownBy(() -> inquiryService.leaveInquiry(999L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
+        }
+    }
+
+    @Nested
     @DisplayName("문의 상세 조회")
     class GetInquiryDetail {
 

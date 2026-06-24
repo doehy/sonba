@@ -35,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -422,6 +423,38 @@ class InquiryControllerTest {
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.success").value(false))
                     .andExpect(jsonPath("$.data.code").value("INQUIRY_FORBIDDEN"));
+        }
+    }
+
+    @Nested
+    @DisplayName("문의방 나가기")
+    class LeaveInquiry {
+
+        @Test
+        @DisplayName("문의방을 나갈 수 있다")
+        void leaveInquiry_success() throws Exception {
+            // when & then
+            mockMvc.perform(post("/inquiries/{inquiryId}/leave", 7L))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data").doesNotExist());
+
+            verify(inquiryService).leaveInquiry(7L);
+        }
+
+        @Test
+        @DisplayName("조회할 수 없는 문의방은 나갈 수 없다")
+        void leaveInquiry_inquiryNotFound() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.INQUIRY_NOT_FOUND))
+                    .given(inquiryService)
+                    .leaveInquiry(999L);
+
+            // when & then
+            mockMvc.perform(post("/inquiries/{inquiryId}/leave", 999L))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("INQUIRY_NOT_FOUND"));
         }
     }
 
