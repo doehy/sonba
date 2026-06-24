@@ -7,6 +7,8 @@ import com.sonbadrim_server.domain.notification.service.NotificationService;
 import com.sonbadrim_server.domain.notification.service.NotificationSseService;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.domain.user.service.UserService;
+import com.sonbadrim_server.global.exception.CustomException;
+import com.sonbadrim_server.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -24,9 +26,11 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -107,6 +111,55 @@ class NotificationControllerTest {
         void getMyNotifications_pageTooSmall() throws Exception {
             // when & then
             expectValidationFailure("page", "-1");
+        }
+    }
+
+    @Nested
+    @DisplayName("알림 읽음 처리")
+    class MarkAsRead {
+
+        @Test
+        @DisplayName("알림을 읽음 처리할 수 있다")
+        void markAsRead_success() throws Exception {
+            // when & then
+            mockMvc.perform(patch("/notifications/{notificationId}/read", 1L))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data").doesNotExist());
+
+            verify(notificationService).markAsRead(1L);
+        }
+
+        @Test
+        @DisplayName("조회할 수 없는 알림은 읽음 처리할 수 없다")
+        void markAsRead_notificationNotFound() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.NOTIFICATION_NOT_FOUND))
+                    .given(notificationService)
+                    .markAsRead(999L);
+
+            // when & then
+            mockMvc.perform(patch("/notifications/{notificationId}/read", 999L))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("NOTIFICATION_NOT_FOUND"));
+        }
+    }
+
+    @Nested
+    @DisplayName("알림 전체 읽음 처리")
+    class MarkAllAsRead {
+
+        @Test
+        @DisplayName("내 알림을 모두 읽음 처리할 수 있다")
+        void markAllAsRead_success() throws Exception {
+            // when & then
+            mockMvc.perform(patch("/notifications/read-all"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data").doesNotExist());
+
+            verify(notificationService).markAllAsRead();
         }
     }
 

@@ -13,6 +13,8 @@ import com.sonbadrim_server.domain.user.entity.UserRole;
 import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.domain.user.service.UserService;
+import com.sonbadrim_server.global.exception.CustomException;
+import com.sonbadrim_server.global.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 @SpringBootTest
@@ -145,6 +148,95 @@ class NotificationServiceTest {
             assertThat(result.getItems()).hasSize(1);
             assertThat(result.isHasNext()).isTrue();
             assertThat(result.getUnreadCount()).isEqualTo(2L);
+        }
+    }
+
+    @Nested
+    @DisplayName("알림 읽음 처리")
+    class MarkAsRead {
+
+        @Test
+        @DisplayName("내 알림을 읽음 처리할 수 있다")
+        void markAsRead_success() {
+            // given
+            Notification notification = saveNotification(currentUser, "읽음 처리할 알림");
+            entityManager.flush();
+            entityManager.clear();
+
+            // when
+            notificationService.markAsRead(notification.getNotificationId());
+
+            // then
+            Notification updatedNotification = notificationRepository
+                    .findById(notification.getNotificationId())
+                    .orElseThrow();
+            assertThat(updatedNotification.isRead()).isTrue();
+        }
+
+        @Test
+        @DisplayName("다른 사용자의 알림은 읽음 처리할 수 없다")
+        void markAsRead_otherUserNotification() {
+            // given
+            User otherUser = saveUser(900000000002L, "다른사용자");
+            Notification notification = saveNotification(otherUser, "다른 사용자 알림");
+            entityManager.flush();
+            entityManager.clear();
+
+            // when & then
+            assertThatThrownBy(() -> notificationService.markAsRead(notification.getNotificationId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.NOTIFICATION_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 알림은 읽음 처리할 수 없다")
+        void markAsRead_notificationNotFound() {
+            // when & then
+            assertThatThrownBy(() -> notificationService.markAsRead(999L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.NOTIFICATION_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("알림 전체 읽음 처리")
+    class MarkAllAsRead {
+
+        @Test
+        @DisplayName("내 읽지 않은 알림을 모두 읽음 처리할 수 있다")
+        void markAllAsRead_success() {
+            // given
+            Notification firstNotification = saveNotification(currentUser, "첫 번째 알림");
+            Notification secondNotification = saveNotification(currentUser, "두 번째 알림");
+            Notification alreadyReadNotification = saveNotification(currentUser, "이미 읽은 알림");
+            alreadyReadNotification.markRead();
+
+            User otherUser = saveUser(900000000002L, "다른사용자");
+            Notification otherUserNotification = saveNotification(otherUser, "다른 사용자 알림");
+
+            entityManager.flush();
+            entityManager.clear();
+
+            // when
+            notificationService.markAllAsRead();
+            entityManager.flush();
+            entityManager.clear();
+
+            // then
+            assertThat(notificationRepository.findById(firstNotification.getNotificationId()).orElseThrow().isRead())
+                    .isTrue();
+            assertThat(notificationRepository.findById(secondNotification.getNotificationId()).orElseThrow().isRead())
+                    .isTrue();
+            assertThat(notificationRepository.findById(alreadyReadNotification.getNotificationId()).orElseThrow().isRead())
+                    .isTrue();
+            assertThat(notificationRepository.findById(otherUserNotification.getNotificationId()).orElseThrow().isRead())
+                    .isFalse();
+            assertThat(notificationRepository.countByUser_UserIdAndReadFalse(currentUser.getUserId()))
+                    .isZero();
+            assertThat(notificationRepository.countByUser_UserIdAndReadFalse(otherUser.getUserId()))
+                    .isEqualTo(1L);
         }
     }
 
