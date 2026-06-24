@@ -2,6 +2,10 @@ package com.sonbadrim_server.domain.inquiry.service;
 
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
+import com.sonbadrim_server.domain.inquiry.dto.request.CreateInquiryRequestDto;
+import com.sonbadrim_server.domain.inquiry.dto.request.SendInquiryMessageRequestDto;
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryDetailMessageResponseDto;
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryMessageResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryMessagePageResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryDetailResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryListResponseDto;
@@ -10,6 +14,7 @@ import com.sonbadrim_server.domain.inquiry.entity.InquiryMessage;
 import com.sonbadrim_server.domain.inquiry.entity.InquiryStatus;
 import com.sonbadrim_server.domain.inquiry.repository.InquiryMessageRepository;
 import com.sonbadrim_server.domain.inquiry.repository.InquiryRepository;
+import com.sonbadrim_server.domain.notification.service.NotificationService;
 import com.sonbadrim_server.domain.region.entity.Region;
 import com.sonbadrim_server.domain.region.repository.RegionRepository;
 import com.sonbadrim_server.domain.user.entity.User;
@@ -29,11 +34,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -64,6 +71,9 @@ class InquiryServiceTest {
 
     @MockitoBean
     private UserService userService;
+
+    @MockitoBean
+    private NotificationService notificationService;
 
     private Region region;
     private User currentUser;
@@ -190,6 +200,213 @@ class InquiryServiceTest {
             // then
             assertThat(result.getItems()).hasSize(1);
             assertThat(result.isHasNext()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("문의하기")
+    class CreateInquiry {
+
+        @Test
+        @DisplayName("기술자에게 처음 문의하면 문의방과 첫 메시지를 만들 수 있다")
+        void createInquiry_success() {
+            // given
+            User targetUser = saveUser(900000000002L, "김기술");
+            saveEngineer(targetUser, "01011112222", "profile.jpg");
+            CreateInquiryRequestDto request =
+                    createInquiryRequest(targetUser.getUserId(), "  처음 문의드립니다.  ");
+
+            // when
+            InquiryMessageResponseDto result = inquiryService.createInquiry(request);
+
+            // then
+            assertThat(result.getInquiryId()).isNotNull();
+            assertThat(result.getMessageId()).isNotNull();
+
+            Inquiry inquiry = inquiryRepository.findById(result.getInquiryId())
+                    .orElseThrow();
+            assertThat(inquiry.getRequester().getUserId()).isEqualTo(currentUser.getUserId());
+            assertThat(inquiry.getTarget().getUserId()).isEqualTo(targetUser.getUserId());
+            assertThat(inquiry.getLastMessageId()).isEqualTo(result.getMessageId());
+            assertThat(inquiry.getRequesterLastReadMessageId()).isEqualTo(result.getMessageId());
+            assertThat(inquiry.getTargetLastReadMessageId()).isNull();
+            assertThat(inquiry.getLastMessageAt()).isNotNull();
+
+            InquiryMessage message = inquiryMessageRepository.findById(result.getMessageId())
+                    .orElseThrow();
+            assertThat(message.getInquiry().getInquiryId()).isEqualTo(result.getInquiryId());
+            assertThat(message.getSender().getUserId()).isEqualTo(currentUser.getUserId());
+            assertThat(message.getContent()).isEqualTo("처음 문의드립니다.");
+
+            verify(notificationService)
+                    .createInquiryNotification(targetUser.getUserId(), currentUser.getNickname());
+        }
+
+        @Test
+        @DisplayName("본인에게 문의할 수 없다")
+        void createInquiry_selfTarget() {
+            // given
+            CreateInquiryRequestDto request =
+                    createInquiryRequest(currentUser.getUserId(), "문의드립니다.");
+
+            // when & then
+            assertThatThrownBy(() -> inquiryService.createInquiry(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_INQUIRY_REQUEST);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 사용자에게 문의할 수 없다")
+        void createInquiry_targetUserNotFound() {
+            // given
+            CreateInquiryRequestDto request =
+                    createInquiryRequest(999L, "문의드립니다.");
+
+            // when & then
+            assertThatThrownBy(() -> inquiryService.createInquiry(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.USER_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("기술자가 아닌 사용자에게 문의할 수 없다")
+        void createInquiry_targetIsNotEngineer() {
+            // given
+            User targetUser = saveUser(900000000002L, "일반사용자");
+            CreateInquiryRequestDto request =
+                    createInquiryRequest(targetUser.getUserId(), "문의드립니다.");
+
+            // when & then
+            assertThatThrownBy(() -> inquiryService.createInquiry(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("이미 문의방이 있으면 새 문의방을 만들 수 없다")
+        void createInquiry_alreadyExists() {
+            // given
+            User targetUser = saveUser(900000000002L, "김기술");
+            saveEngineer(targetUser, "01011112222", "profile.jpg");
+            saveInquiry(targetUser, currentUser);
+            CreateInquiryRequestDto request =
+                    createInquiryRequest(targetUser.getUserId(), "다시 문의드립니다.");
+
+            // when & then
+            assertThatThrownBy(() -> inquiryService.createInquiry(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INQUIRY_ALREADY_EXISTS);
+        }
+
+        @Test
+        @DisplayName("내용이 없는 메시지로 문의할 수 없다")
+        void createInquiry_blankMessage() {
+            // given
+            User targetUser = saveUser(900000000002L, "김기술");
+            saveEngineer(targetUser, "01011112222", "profile.jpg");
+            CreateInquiryRequestDto request =
+                    createInquiryRequest(targetUser.getUserId(), "   ");
+
+            // when & then
+            assertThatThrownBy(() -> inquiryService.createInquiry(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_INQUIRY_REQUEST);
+        }
+    }
+
+    @Nested
+    @DisplayName("문의방 메시지 전송")
+    class SendMessageInRoom {
+
+        @Test
+        @DisplayName("문의 참여자는 문의방에 메시지를 보낼 수 있다")
+        void sendMessageInRoom_success() {
+            // given
+            User targetUser = saveUser(900000000002L, "문의대상");
+            Inquiry inquiry = saveInquiry(currentUser, targetUser);
+            InquiryMessage firstMessage = saveMessage(inquiry, targetUser, "기존 메시지");
+            inquiry.updateLastMessage(firstMessage.getInquiryMessageId());
+            SendInquiryMessageRequestDto request =
+                    sendInquiryMessageRequest("  새 메시지입니다.  ");
+
+            entityManager.flush();
+            entityManager.clear();
+
+            // when
+            InquiryDetailMessageResponseDto result =
+                    inquiryService.sendMessageInRoom(inquiry.getInquiryId(), request);
+
+            // then
+            assertThat(result.getMessageId()).isNotNull();
+            assertThat(result.getSenderUserId()).isEqualTo(currentUser.getUserId());
+            assertThat(result.getContent()).isEqualTo("새 메시지입니다.");
+            assertThat(result.getCreatedAt()).isNotNull();
+
+            Inquiry updatedInquiry = inquiryRepository.findById(inquiry.getInquiryId())
+                    .orElseThrow();
+            assertThat(updatedInquiry.getLastMessageId()).isEqualTo(result.getMessageId());
+            assertThat(updatedInquiry.getRequesterLastReadMessageId()).isEqualTo(result.getMessageId());
+            assertThat(updatedInquiry.getTargetLastReadMessageId()).isNull();
+            assertThat(updatedInquiry.getLastMessageAt()).isNotNull();
+
+            verify(notificationService)
+                    .createInquiryNotification(targetUser.getUserId(), currentUser.getNickname());
+        }
+
+        @Test
+        @DisplayName("문의 참여자가 아닌 사용자는 문의방에 메시지를 보낼 수 없다")
+        void sendMessageInRoom_notParticipant() {
+            // given
+            User requester = saveUser(900000000002L, "문의요청자");
+            User target = saveUser(900000000003L, "문의대상");
+            Inquiry inquiry = saveInquiry(requester, target);
+            SendInquiryMessageRequestDto request =
+                    sendInquiryMessageRequest("메시지입니다.");
+
+            // when & then
+            assertThatThrownBy(() ->
+                    inquiryService.sendMessageInRoom(inquiry.getInquiryId(), request)
+            )
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INQUIRY_FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 문의방에는 메시지를 보낼 수 없다")
+        void sendMessageInRoom_inquiryNotFound() {
+            // given
+            SendInquiryMessageRequestDto request =
+                    sendInquiryMessageRequest("메시지입니다.");
+
+            // when & then
+            assertThatThrownBy(() -> inquiryService.sendMessageInRoom(999L, request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("내용이 없는 메시지는 문의방에 보낼 수 없다")
+        void sendMessageInRoom_blankMessage() {
+            // given
+            User target = saveUser(900000000002L, "문의대상");
+            Inquiry inquiry = saveInquiry(currentUser, target);
+            SendInquiryMessageRequestDto request =
+                    sendInquiryMessageRequest("   ");
+
+            // when & then
+            assertThatThrownBy(() ->
+                    inquiryService.sendMessageInRoom(inquiry.getInquiryId(), request)
+            )
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_INQUIRY_REQUEST);
         }
     }
 
@@ -439,5 +656,18 @@ class InquiryServiceTest {
                 "기술자",
                 "기술자 소개"
         ));
+    }
+
+    private CreateInquiryRequestDto createInquiryRequest(Long targetUserId, String message) {
+        CreateInquiryRequestDto request = new CreateInquiryRequestDto();
+        ReflectionTestUtils.setField(request, "targetUserId", targetUserId);
+        ReflectionTestUtils.setField(request, "message", message);
+        return request;
+    }
+
+    private SendInquiryMessageRequestDto sendInquiryMessageRequest(String message) {
+        SendInquiryMessageRequestDto request = new SendInquiryMessageRequestDto();
+        ReflectionTestUtils.setField(request, "message", message);
+        return request;
     }
 }
