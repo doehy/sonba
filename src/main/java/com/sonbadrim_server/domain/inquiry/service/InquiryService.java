@@ -160,7 +160,7 @@ public class InquiryService {
         }
 
         Long nextCursor = hasNext
-                ? pageMessages.get(pageMessages.size() - 1).getInquiryMessageId()
+                ? pageMessages.get(0).getInquiryMessageId()
                 : null;
 
         return new InquiryMessagePageResponseDto(items, hasNext, nextCursor);

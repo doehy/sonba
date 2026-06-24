@@ -1,8 +1,10 @@
 package com.sonbadrim_server.domain.inquiry.controller;
 
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryDetailMessageResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryDetailResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryListItemResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryListResponseDto;
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryMessagePageResponseDto;
 import com.sonbadrim_server.domain.inquiry.entity.InquiryStatus;
 import com.sonbadrim_server.domain.inquiry.service.InquiryService;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
@@ -131,6 +133,81 @@ class InquiryControllerTest {
 
             // when & then
             mockMvc.perform(get("/inquiries/{inquiryId}", 999L))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("INQUIRY_NOT_FOUND"));
+        }
+    }
+
+    @Nested
+    @DisplayName("문의 메시지 조회")
+    class GetInquiryMessages {
+
+        @Test
+        @DisplayName("문의 메시지를 기본 커서와 크기로 조회할 수 있다")
+        void getInquiryMessages_defaultCursorAndSize() throws Exception {
+            // given
+            LocalDateTime createdAt = LocalDateTime.of(2026, 6, 23, 13, 0);
+            InquiryDetailMessageResponseDto message =
+                    new InquiryDetailMessageResponseDto(
+                            10L,
+                            1L,
+                            "문의 메시지",
+                            createdAt
+                    );
+            given(inquiryService.getInquiryMessages(7L, null, 15))
+                    .willReturn(new InquiryMessagePageResponseDto(
+                            List.of(message),
+                            false,
+                            null
+                    ));
+
+            // when & then
+            mockMvc.perform(get("/inquiries/{inquiryId}/messages", 7L))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.items[0].messageId").value(10L))
+                    .andExpect(jsonPath("$.data.items[0].senderUserId").value(1L))
+                    .andExpect(jsonPath("$.data.items[0].content").value("문의 메시지"))
+                    .andExpect(jsonPath("$.data.hasNext").value(false))
+                    .andExpect(jsonPath("$.data.nextCursor").doesNotExist());
+
+            verify(inquiryService).getInquiryMessages(7L, null, 15);
+        }
+
+        @Test
+        @DisplayName("커서와 페이지 크기를 지정하여 이전 문의 메시지를 조회할 수 있다")
+        void getInquiryMessages_customCursorAndSize() throws Exception {
+            // given
+            given(inquiryService.getInquiryMessages(7L, 100L, 5))
+                    .willReturn(new InquiryMessagePageResponseDto(
+                            List.of(),
+                            true,
+                            95L
+                    ));
+
+            // when & then
+            mockMvc.perform(get("/inquiries/{inquiryId}/messages", 7L)
+                            .param("cursor", "100")
+                            .param("size", "5"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.items").isEmpty())
+                    .andExpect(jsonPath("$.data.hasNext").value(true))
+                    .andExpect(jsonPath("$.data.nextCursor").value(95L));
+
+            verify(inquiryService).getInquiryMessages(7L, 100L, 5);
+        }
+
+        @Test
+        @DisplayName("조회할 수 없는 문의방의 메시지는 찾을 수 없음으로 응답한다")
+        void getInquiryMessages_inquiryNotFound() throws Exception {
+            // given
+            given(inquiryService.getInquiryMessages(999L, null, 15))
+                    .willThrow(new CustomException(ErrorCode.INQUIRY_NOT_FOUND));
+
+            // when & then
+            mockMvc.perform(get("/inquiries/{inquiryId}/messages", 999L))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.success").value(false))
                     .andExpect(jsonPath("$.data.code").value("INQUIRY_NOT_FOUND"));

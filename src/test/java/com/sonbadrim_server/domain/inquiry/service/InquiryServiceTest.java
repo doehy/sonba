@@ -2,6 +2,7 @@ package com.sonbadrim_server.domain.inquiry.service;
 
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
+import com.sonbadrim_server.domain.inquiry.dto.response.InquiryMessagePageResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryDetailResponseDto;
 import com.sonbadrim_server.domain.inquiry.dto.response.InquiryListResponseDto;
 import com.sonbadrim_server.domain.inquiry.entity.Inquiry;
@@ -251,6 +252,154 @@ class InquiryServiceTest {
         void getInquiryDetail_inquiryNotFound() {
             // when & then
             assertThatThrownBy(() -> inquiryService.getInquiryDetail(999L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("문의 메시지 조회")
+    class GetInquiryMessages {
+
+        @Test
+        @DisplayName("최신 문의 메시지를 시간순으로 조회하고 다음 커서와 읽음 위치를 갱신한다")
+        void getInquiryMessages_firstPage() {
+            // given
+            User target = saveUser(900000000002L, "문의대상");
+            Inquiry inquiry = saveInquiry(currentUser, target);
+            InquiryMessage firstMessage =
+                    saveMessage(inquiry, currentUser, "첫 번째 메시지");
+            InquiryMessage secondMessage =
+                    saveMessage(inquiry, target, "두 번째 메시지");
+            InquiryMessage thirdMessage =
+                    saveMessage(inquiry, currentUser, "세 번째 메시지");
+
+            entityManager.flush();
+            entityManager.clear();
+
+            // when
+            InquiryMessagePageResponseDto result =
+                    inquiryService.getInquiryMessages(inquiry.getInquiryId(), null, 2);
+
+            // then
+            assertThat(result.getItems())
+                    .extracting(item -> item.getMessageId())
+                    .containsExactly(
+                            secondMessage.getInquiryMessageId(),
+                            thirdMessage.getInquiryMessageId()
+                    );
+            assertThat(result.getItems())
+                    .extracting(item -> item.getContent())
+                    .containsExactly("두 번째 메시지", "세 번째 메시지");
+            assertThat(result.getItems())
+                    .extracting(item -> item.getSenderUserId())
+                    .containsExactly(target.getUserId(), currentUser.getUserId());
+            assertThat(result.getItems())
+                    .allSatisfy(item -> assertThat(item.getCreatedAt()).isNotNull());
+            assertThat(result.isHasNext()).isTrue();
+            assertThat(result.getNextCursor()).isEqualTo(secondMessage.getInquiryMessageId());
+
+            Inquiry updatedInquiry = inquiryRepository.findById(inquiry.getInquiryId())
+                    .orElseThrow();
+            assertThat(updatedInquiry.getRequesterLastReadMessageId())
+                    .isEqualTo(thirdMessage.getInquiryMessageId());
+            assertThat(firstMessage.getInquiryMessageId())
+                    .isLessThan(result.getNextCursor());
+        }
+
+        @Test
+        @DisplayName("다음 커서로 이전 문의 메시지를 중복 없이 조회할 수 있다")
+        void getInquiryMessages_nextCursor() {
+            // given
+            User target = saveUser(900000000002L, "문의대상");
+            Inquiry inquiry = saveInquiry(currentUser, target);
+            InquiryMessage firstMessage =
+                    saveMessage(inquiry, currentUser, "첫 번째 메시지");
+            InquiryMessage secondMessage =
+                    saveMessage(inquiry, target, "두 번째 메시지");
+            InquiryMessage thirdMessage =
+                    saveMessage(inquiry, currentUser, "세 번째 메시지");
+            InquiryMessage fourthMessage =
+                    saveMessage(inquiry, target, "네 번째 메시지");
+
+            entityManager.flush();
+            entityManager.clear();
+
+            InquiryMessagePageResponseDto firstPage =
+                    inquiryService.getInquiryMessages(inquiry.getInquiryId(), null, 2);
+
+            // when
+            InquiryMessagePageResponseDto secondPage =
+                    inquiryService.getInquiryMessages(
+                            inquiry.getInquiryId(),
+                            firstPage.getNextCursor(),
+                            2
+                    );
+
+            // then
+            assertThat(firstPage.getItems())
+                    .extracting(item -> item.getMessageId())
+                    .containsExactly(
+                            thirdMessage.getInquiryMessageId(),
+                            fourthMessage.getInquiryMessageId()
+                    );
+            assertThat(secondPage.getItems())
+                    .extracting(item -> item.getMessageId())
+                    .containsExactly(
+                            firstMessage.getInquiryMessageId(),
+                            secondMessage.getInquiryMessageId()
+                    );
+            assertThat(secondPage.isHasNext()).isFalse();
+            assertThat(secondPage.getNextCursor()).isNull();
+        }
+
+        @Test
+        @DisplayName("문의 대상자가 메시지를 조회하면 대상자의 읽음 위치가 갱신된다")
+        void getInquiryMessages_updatesTargetReadPosition() {
+            // given
+            User requester = saveUser(900000000002L, "문의요청자");
+            Inquiry inquiry = saveInquiry(requester, currentUser);
+            InquiryMessage message =
+                    saveMessage(inquiry, requester, "문의 메시지");
+
+            entityManager.flush();
+            entityManager.clear();
+
+            // when
+            InquiryMessagePageResponseDto result =
+                    inquiryService.getInquiryMessages(inquiry.getInquiryId(), null, 15);
+
+            // then
+            assertThat(result.getItems()).hasSize(1);
+            Inquiry updatedInquiry = inquiryRepository.findById(inquiry.getInquiryId())
+                    .orElseThrow();
+            assertThat(updatedInquiry.getTargetLastReadMessageId())
+                    .isEqualTo(message.getInquiryMessageId());
+        }
+
+        @Test
+        @DisplayName("문의 참여자가 아닌 사용자는 문의 메시지를 조회할 수 없다")
+        void getInquiryMessages_notParticipant() {
+            // given
+            User requester = saveUser(900000000002L, "문의요청자");
+            User target = saveUser(900000000003L, "문의대상");
+            Inquiry inquiry = saveInquiry(requester, target);
+
+            // when & then
+            assertThatThrownBy(() ->
+                    inquiryService.getInquiryMessages(inquiry.getInquiryId(), null, 15)
+            )
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 문의방의 메시지는 조회할 수 없다")
+        void getInquiryMessages_inquiryNotFound() {
+            // when & then
+            assertThatThrownBy(() -> inquiryService.getInquiryMessages(999L, null, 15))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.INQUIRY_NOT_FOUND);
