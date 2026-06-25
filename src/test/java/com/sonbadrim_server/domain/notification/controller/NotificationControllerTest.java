@@ -5,6 +5,7 @@ import com.sonbadrim_server.domain.notification.dto.response.NotificationListRes
 import com.sonbadrim_server.domain.notification.entity.NotificationTypeCode;
 import com.sonbadrim_server.domain.notification.service.NotificationService;
 import com.sonbadrim_server.domain.notification.service.NotificationSseService;
+import com.sonbadrim_server.domain.user.entity.User;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.exception.CustomException;
@@ -17,8 +18,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,11 +30,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @AutoConfigureMockMvc(addFilters = false)
@@ -52,6 +57,33 @@ class NotificationControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Nested
+    @DisplayName("알림 SSE 구독")
+    class Subscribe {
+
+        @Test
+        @DisplayName("로그인 사용자는 알림 SSE를 구독할 수 있다")
+        void subscribe_success() throws Exception {
+            // given
+            User currentUser = mock(User.class);
+            given(currentUser.getUserId()).willReturn(1L);
+            given(userService.getCurrentUser()).willReturn(currentUser);
+
+            SseEmitter emitter = new SseEmitter(60_000L);
+            given(notificationSseService.subscribe(1L)).willReturn(emitter);
+
+            // when & then
+            mockMvc.perform(get("/notifications/subscribe"))
+                    .andExpect(status().isOk())
+                    .andExpect(request().asyncStarted())
+                    .andExpect(result -> assertThat(result.getResponse().getContentType())
+                            .startsWith(MediaType.TEXT_EVENT_STREAM_VALUE));
+
+            verify(userService).getCurrentUser();
+            verify(notificationSseService).subscribe(1L);
+        }
+    }
 
     @Nested
     @DisplayName("알림 목록 조회")

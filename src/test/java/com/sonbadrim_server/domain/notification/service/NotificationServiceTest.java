@@ -166,7 +166,7 @@ class NotificationServiceTest {
         void createInquiryNotification_success() {
             // given
             User targetUser = saveUser(900000000002L, "알림대상");
-            given(notificationSseService.sendNotification(eq(targetUser.getUserId()), any(Notification.class)))
+            given(notificationSseService.sendNotificationEvent(eq(targetUser.getUserId()), any(Notification.class)))
                     .willReturn(false);
 
             // when
@@ -180,7 +180,7 @@ class NotificationServiceTest {
             assertThat(notification.isRead()).isFalse();
             assertThat(notification.isSseSent()).isFalse();
             verify(notificationSseService)
-                    .sendNotification(eq(targetUser.getUserId()), any(Notification.class));
+                    .sendNotificationEvent(eq(targetUser.getUserId()), any(Notification.class));
         }
 
         @Test
@@ -188,7 +188,7 @@ class NotificationServiceTest {
         void createInquiryNotification_sseDelivered() {
             // given
             User targetUser = saveUser(900000000002L, "알림대상");
-            given(notificationSseService.sendNotification(eq(targetUser.getUserId()), any(Notification.class)))
+            given(notificationSseService.sendNotificationEvent(eq(targetUser.getUserId()), any(Notification.class)))
                     .willReturn(true);
 
             // when
@@ -206,7 +206,7 @@ class NotificationServiceTest {
         void createInquiryNotification_sseFailed() {
             // given
             User targetUser = saveUser(900000000002L, "알림대상");
-            given(notificationSseService.sendNotification(eq(targetUser.getUserId()), any(Notification.class)))
+            given(notificationSseService.sendNotificationEvent(eq(targetUser.getUserId()), any(Notification.class)))
                     .willReturn(false);
 
             // when
@@ -226,7 +226,7 @@ class NotificationServiceTest {
         void createInquiryNotification_senderNameIsNull() {
             // given
             User targetUser = saveUser(900000000002L, "알림대상");
-            given(notificationSseService.sendNotification(eq(targetUser.getUserId()), any(Notification.class)))
+            given(notificationSseService.sendNotificationEvent(eq(targetUser.getUserId()), any(Notification.class)))
                     .willReturn(false);
 
             // when
