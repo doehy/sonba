@@ -33,7 +33,10 @@ import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -64,6 +67,9 @@ class NotificationServiceTest {
 
     @MockitoBean
     private UserService userService;
+
+    @MockitoBean
+    private NotificationSseService notificationSseService;
 
     private Region region;
     private NotificationType inquiryType;
@@ -148,6 +154,99 @@ class NotificationServiceTest {
             assertThat(result.getItems()).hasSize(1);
             assertThat(result.isHasNext()).isTrue();
             assertThat(result.getUnreadCount()).isEqualTo(2L);
+        }
+    }
+
+    @Nested
+    @DisplayName("알림 생성")
+    class CreateNotification {
+
+        @Test
+        @DisplayName("문의 알림을 생성할 수 있다")
+        void createInquiryNotification_success() {
+            // given
+            User targetUser = saveUser(900000000002L, "알림대상");
+            given(notificationSseService.sendNotification(eq(targetUser.getUserId()), any(Notification.class)))
+                    .willReturn(false);
+
+            // when
+            notificationService.createInquiryNotification(targetUser.getUserId(), "김문의");
+
+            // then
+            Notification notification = notificationRepository.findAll().getFirst();
+            assertThat(notification.getUser().getUserId()).isEqualTo(targetUser.getUserId());
+            assertThat(notification.getNotificationType().getType()).isEqualTo(NotificationTypeCode.INQUIRY);
+            assertThat(notification.getContent()).isEqualTo("김문의님이 새 문의를 보냈습니다.");
+            assertThat(notification.isRead()).isFalse();
+            assertThat(notification.isSseSent()).isFalse();
+            verify(notificationSseService)
+                    .sendNotification(eq(targetUser.getUserId()), any(Notification.class));
+        }
+
+        @Test
+        @DisplayName("실시간 전송에 성공하면 전송 완료 상태로 저장된다")
+        void createInquiryNotification_sseDelivered() {
+            // given
+            User targetUser = saveUser(900000000002L, "알림대상");
+            given(notificationSseService.sendNotification(eq(targetUser.getUserId()), any(Notification.class)))
+                    .willReturn(true);
+
+            // when
+            notificationService.createInquiryNotification(targetUser.getUserId(), "김문의");
+            entityManager.flush();
+            entityManager.clear();
+
+            // then
+            Notification notification = notificationRepository.findAll().getFirst();
+            assertThat(notification.isSseSent()).isTrue();
+        }
+
+        @Test
+        @DisplayName("실시간 전송에 실패해도 알림은 저장된다")
+        void createInquiryNotification_sseFailed() {
+            // given
+            User targetUser = saveUser(900000000002L, "알림대상");
+            given(notificationSseService.sendNotification(eq(targetUser.getUserId()), any(Notification.class)))
+                    .willReturn(false);
+
+            // when
+            notificationService.createInquiryNotification(targetUser.getUserId(), "김문의");
+            entityManager.flush();
+            entityManager.clear();
+
+            // then
+            Notification notification = notificationRepository.findAll().getFirst();
+            assertThat(notification.getUser().getUserId()).isEqualTo(targetUser.getUserId());
+            assertThat(notification.getContent()).isEqualTo("김문의님이 새 문의를 보냈습니다.");
+            assertThat(notification.isSseSent()).isFalse();
+        }
+
+        @Test
+        @DisplayName("보낸 사람 이름이 없으면 기본 이름으로 알림을 생성한다")
+        void createInquiryNotification_senderNameIsNull() {
+            // given
+            User targetUser = saveUser(900000000002L, "알림대상");
+            given(notificationSseService.sendNotification(eq(targetUser.getUserId()), any(Notification.class)))
+                    .willReturn(false);
+
+            // when
+            notificationService.createInquiryNotification(targetUser.getUserId(), null);
+
+            // then
+            Notification notification = notificationRepository.findAll().getFirst();
+            assertThat(notification.getContent()).isEqualTo("알 수 없는 사용자님이 새 문의를 보냈습니다.");
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 사용자에게 알림을 생성할 수 없다")
+        void createInquiryNotification_userNotFound() {
+            // when & then
+            assertThatThrownBy(() -> notificationService.createInquiryNotification(999L, "김문의"))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.USER_NOT_FOUND);
+
+            assertThat(notificationRepository.findAll()).isEmpty();
         }
     }
 
