@@ -78,7 +78,7 @@ public class NotificationService {
         String content = renderTemplate(notificationType, senderDisplayName);
         Notification notification = notificationRepository.save(Notification.create(targetUser, notificationType, content));
 
-        boolean delivered = notificationSseService.sendNotification(targetUser.getUserId(), notification);
+        boolean delivered = notificationSseService.sendNotificationEvent(targetUser.getUserId(), notification);
         if (delivered) {
             notification.markSseSent();
         }

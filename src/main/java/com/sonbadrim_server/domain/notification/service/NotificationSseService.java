@@ -2,39 +2,36 @@ package com.sonbadrim_server.domain.notification.service;
 
 import com.sonbadrim_server.domain.notification.dto.response.NotificationSseResponseDto;
 import com.sonbadrim_server.domain.notification.entity.Notification;
+import com.sonbadrim_server.domain.notification.service.SseEmitterRegistry.SseEmitterConnection;
 import java.io.IOException;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
+@RequiredArgsConstructor
 public class NotificationSseService {
 
     private static final long DEFAULT_TIMEOUT_MS = 60L * 60 * 1000;
 
-    private final Map<Long, Map<String, SseEmitter>> emitterStore = new ConcurrentHashMap<>();
+    private final SseEmitterRegistry sseEmitterRegistry;
 
     public SseEmitter subscribe(Long userId) {
         SseEmitter emitter = new SseEmitter(DEFAULT_TIMEOUT_MS);
-        String emitterId = UUID.randomUUID().toString();
+        String emitterId = sseEmitterRegistry.add(userId, emitter);
 
-        emitterStore.computeIfAbsent(userId, ignored -> new ConcurrentHashMap<>())
-                .put(emitterId, emitter);
-
-        emitter.onCompletion(() -> removeEmitter(userId, emitterId));
-        emitter.onTimeout(() -> removeEmitter(userId, emitterId));
-        emitter.onError(ignored -> removeEmitter(userId, emitterId));
+        emitter.onCompletion(() -> sseEmitterRegistry.remove(userId, emitterId));
+        emitter.onTimeout(() -> sseEmitterRegistry.remove(userId, emitterId));
+        emitter.onError(ignored -> sseEmitterRegistry.remove(userId, emitterId));
 
         sendEvent(emitter, "connect", "SSE connection established");
         return emitter;
     }
 
-    public boolean sendNotification(Long userId, Notification notification) {
-        Map<String, SseEmitter> userEmitters = emitterStore.get(userId);
-        if (userEmitters == null || userEmitters.isEmpty()) {
+    public boolean sendNotificationEvent(Long userId, Notification notification) {
+        var connections = sseEmitterRegistry.findByUserId(userId);
+        if (connections.isEmpty()) {
             return false;
         }
 
@@ -47,12 +44,12 @@ public class NotificationSseService {
         );
 
         boolean delivered = false;
-        for (Map.Entry<String, SseEmitter> entry : userEmitters.entrySet()) {
+        for (SseEmitterConnection connection : connections) {
             try {
-                sendEvent(entry.getValue(), "notification", payload);
+                sendEvent(connection.emitter(), "notification", payload);
                 delivered = true;
             } catch (Exception e) {
-                removeEmitter(userId, entry.getKey());
+                sseEmitterRegistry.remove(connection.userId(), connection.emitterId());
             }
         }
         return delivered;
@@ -60,16 +57,11 @@ public class NotificationSseService {
 
     @Scheduled(fixedDelay = 30_000)
     public void sendHeartbeat() {
-        for (Map.Entry<Long, Map<String, SseEmitter>> userEntry : emitterStore.entrySet()) {
-            Long userId = userEntry.getKey();
-            Map<String, SseEmitter> userEmitters = userEntry.getValue();
-
-            for (Map.Entry<String, SseEmitter> emitterEntry : userEmitters.entrySet()) {
-                try {
-                    sendEvent(emitterEntry.getValue(), "heartbeat", "keepalive");
-                } catch (Exception e) {
-                    removeEmitter(userId, emitterEntry.getKey());
-                }
+        for (SseEmitterConnection connection : sseEmitterRegistry.findAll()) {
+            try {
+                sendEvent(connection.emitter(), "heartbeat", "keepalive");
+            } catch (Exception e) {
+                sseEmitterRegistry.remove(connection.userId(), connection.emitterId());
             }
         }
     }
@@ -81,18 +73,6 @@ public class NotificationSseService {
                     .data(data));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to send SSE event", e);
-        }
-    }
-
-    private void removeEmitter(Long userId, String emitterId) {
-        Map<String, SseEmitter> userEmitters = emitterStore.get(userId);
-        if (userEmitters == null) {
-            return;
-        }
-
-        userEmitters.remove(emitterId);
-        if (userEmitters.isEmpty()) {
-            emitterStore.remove(userId);
         }
     }
 }
