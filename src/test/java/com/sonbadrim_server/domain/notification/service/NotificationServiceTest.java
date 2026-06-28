@@ -33,10 +33,7 @@ import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -67,9 +64,6 @@ class NotificationServiceTest {
 
     @MockitoBean
     private UserService userService;
-
-    @MockitoBean
-    private NotificationSseService notificationSseService;
 
     private Region region;
     private NotificationType inquiryType;
@@ -166,8 +160,6 @@ class NotificationServiceTest {
         void createInquiryNotification_success() {
             // given
             User targetUser = saveUser(900000000002L, "알림대상");
-            given(notificationSseService.sendNotificationEvent(eq(targetUser.getUserId()), any(Notification.class)))
-                    .willReturn(false);
 
             // when
             notificationService.createInquiryNotification(targetUser.getUserId(), "김문의");
@@ -179,46 +171,6 @@ class NotificationServiceTest {
             assertThat(notification.getContent()).isEqualTo("김문의님이 새 문의를 보냈습니다.");
             assertThat(notification.isRead()).isFalse();
             assertThat(notification.isSseSent()).isFalse();
-            verify(notificationSseService)
-                    .sendNotificationEvent(eq(targetUser.getUserId()), any(Notification.class));
-        }
-
-        @Test
-        @DisplayName("실시간 전송에 성공하면 전송 완료 상태로 저장된다")
-        void createInquiryNotification_sseDelivered() {
-            // given
-            User targetUser = saveUser(900000000002L, "알림대상");
-            given(notificationSseService.sendNotificationEvent(eq(targetUser.getUserId()), any(Notification.class)))
-                    .willReturn(true);
-
-            // when
-            notificationService.createInquiryNotification(targetUser.getUserId(), "김문의");
-            entityManager.flush();
-            entityManager.clear();
-
-            // then
-            Notification notification = notificationRepository.findAll().getFirst();
-            assertThat(notification.isSseSent()).isTrue();
-        }
-
-        @Test
-        @DisplayName("실시간 전송에 실패해도 알림은 저장된다")
-        void createInquiryNotification_sseFailed() {
-            // given
-            User targetUser = saveUser(900000000002L, "알림대상");
-            given(notificationSseService.sendNotificationEvent(eq(targetUser.getUserId()), any(Notification.class)))
-                    .willReturn(false);
-
-            // when
-            notificationService.createInquiryNotification(targetUser.getUserId(), "김문의");
-            entityManager.flush();
-            entityManager.clear();
-
-            // then
-            Notification notification = notificationRepository.findAll().getFirst();
-            assertThat(notification.getUser().getUserId()).isEqualTo(targetUser.getUserId());
-            assertThat(notification.getContent()).isEqualTo("김문의님이 새 문의를 보냈습니다.");
-            assertThat(notification.isSseSent()).isFalse();
         }
 
         @Test
@@ -226,8 +178,6 @@ class NotificationServiceTest {
         void createInquiryNotification_senderNameIsNull() {
             // given
             User targetUser = saveUser(900000000002L, "알림대상");
-            given(notificationSseService.sendNotificationEvent(eq(targetUser.getUserId()), any(Notification.class)))
-                    .willReturn(false);
 
             // when
             notificationService.createInquiryNotification(targetUser.getUserId(), null);

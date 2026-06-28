@@ -5,6 +5,7 @@ import com.sonbadrim_server.domain.notification.dto.response.NotificationListRes
 import com.sonbadrim_server.domain.notification.entity.Notification;
 import com.sonbadrim_server.domain.notification.entity.NotificationType;
 import com.sonbadrim_server.domain.notification.entity.NotificationTypeCode;
+import com.sonbadrim_server.domain.notification.event.NotificationSseSendEvent;
 import com.sonbadrim_server.domain.notification.repository.NotificationRepository;
 import com.sonbadrim_server.domain.notification.repository.NotificationTypeRepository;
 import com.sonbadrim_server.domain.user.entity.User;
@@ -14,6 +15,7 @@ import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
@@ -30,7 +32,7 @@ public class NotificationService {
     private final NotificationTypeRepository notificationTypeRepository;
     private final UserRepository userRepository;
     private final UserService userService;
-    private final NotificationSseService notificationSseService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public NotificationListResponseDto getMyNotifications(Pageable pageable) {
@@ -78,10 +80,10 @@ public class NotificationService {
         String content = renderTemplate(notificationType, senderDisplayName);
         Notification notification = notificationRepository.save(Notification.create(targetUser, notificationType, content));
 
-        boolean delivered = notificationSseService.sendNotificationEvent(targetUser.getUserId(), notification);
-        if (delivered) {
-            notification.markSseSent();
-        }
+        eventPublisher.publishEvent(new NotificationSseSendEvent(
+                targetUser.getUserId(),
+                notification.getNotificationId()
+        ));
     }
 
     private String renderTemplate(NotificationType notificationType, String senderDisplayName) {
