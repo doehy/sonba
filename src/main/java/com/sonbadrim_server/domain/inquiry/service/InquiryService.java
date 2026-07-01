@@ -213,7 +213,7 @@ public class InquiryService {
     public InquiryDetailMessageResponseDto sendMessageInRoom(Long inquiryId, SendInquiryMessageRequestDto requestDto) {
         User sender = userService.getCurrentUser();
 
-        Inquiry inquiry = inquiryRepository.findById(inquiryId)
+        Inquiry inquiry = inquiryRepository.findByIdForUpdate(inquiryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.INQUIRY_NOT_FOUND));
 
         boolean isParticipant = inquiry.getRequester().getUserId().equals(sender.getUserId())
