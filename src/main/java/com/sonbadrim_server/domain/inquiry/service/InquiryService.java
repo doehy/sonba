@@ -72,6 +72,19 @@ public class InquiryService {
                 .stream()
                 .collect(Collectors.toMap(InquiryMessage::getInquiryMessageId, Function.identity()));
 
+        Set<Long> inquiryIds = inquiryPage.getContent().stream()
+                .map(Inquiry::getInquiryId)
+                .collect(Collectors.toSet());
+
+        Map<Long, Long> unreadCountMap = inquiryIds.isEmpty()
+                ? Map.of()
+                : inquiryMessageRepository.countUnreadByInquiryIds(inquiryIds, currentUser.getUserId())
+                .stream()
+                .collect(Collectors.toMap(
+                        InquiryMessageRepository.UnreadCountProjection::getInquiryId,
+                        InquiryMessageRepository.UnreadCountProjection::getUnreadCount
+                ));
+
         List<InquiryListItemResponseDto> items = inquiryPage.getContent().stream()
                 .map(inquiry -> {
                     User otherUser = inquiry.getRequester().getUserId().equals(currentUser.getUserId())
@@ -80,12 +93,7 @@ public class InquiryService {
 
                     Long lastMessageId = inquiry.getLastMessageId(); // 마지막 메시지 아이디를 꺼내
                     InquiryMessage lastMessage = messageMap.get(lastMessageId); // 마지막 메시지를 꺼내
-                    Long myLastReadMessageId = inquiry.getLastReadMessageIdOf(currentUser.getUserId()); //나의 마지막 메시지 아이디
-                    long unreadCount = countUnreadMessages( // 그걸 기반으로 내가 몇 개를 안 읽었는지를 꺼내
-                            inquiry.getInquiryId(),
-                            currentUser.getUserId(),
-                            myLastReadMessageId
-                    );
+                    long unreadCount = unreadCountMap.getOrDefault(inquiry.getInquiryId(), 0L);
 
                     String otherUserProfileImage = otherUser.getEngineer() != null // 프로필 나타내주기
                             ? otherUser.getEngineer().getProfileImage()
@@ -245,17 +253,6 @@ public class InquiryService {
                 .orElseThrow(() -> new CustomException(ErrorCode.INQUIRY_NOT_FOUND));
 
         inquiry.leave(currentUser.getUserId());
-    }
-
-    private long countUnreadMessages(Long inquiryId, Long currentUserId, Long lastReadMessageId) {
-        if (lastReadMessageId == null) {
-            return inquiryMessageRepository.countByInquiry_InquiryIdAndSender_UserIdNot(inquiryId, currentUserId);
-        }
-        return inquiryMessageRepository.countByInquiry_InquiryIdAndInquiryMessageIdGreaterThanAndSender_UserIdNot(
-                inquiryId,
-                lastReadMessageId,
-                currentUserId
-        );
     }
 
     private String validateAndNormalizeMessage(String message) {
