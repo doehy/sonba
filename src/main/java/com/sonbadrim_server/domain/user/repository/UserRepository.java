@@ -15,6 +15,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User>findByUserId(Long userId);
 
+    List<User> findByStatus(UserStatus status);
+
     @Query("""
             select u
             from User u

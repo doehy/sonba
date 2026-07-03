@@ -16,10 +16,18 @@ INSERT INTO notification_type (
     template,
     created_at,
     modified_at
-) VALUES (
+) VALUES
+(
     1,
     'INQUIRY',
     '%s님이 새 문의를 보냈습니다.',
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+),
+(
+    2,
+    'NOTICE',
+    '공지 알림이 도착했습니다.',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 );

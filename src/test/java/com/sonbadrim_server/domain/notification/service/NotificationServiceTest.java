@@ -1,5 +1,7 @@
 package com.sonbadrim_server.domain.notification.service;
 
+import com.sonbadrim_server.domain.notification.dto.request.BroadcastNotificationRequestDto;
+import com.sonbadrim_server.domain.notification.dto.response.BroadcastNotificationResponseDto;
 import com.sonbadrim_server.domain.notification.dto.response.NotificationListResponseDto;
 import com.sonbadrim_server.domain.notification.entity.Notification;
 import com.sonbadrim_server.domain.notification.entity.NotificationType;
@@ -201,6 +203,66 @@ class NotificationServiceTest {
     }
 
     @Nested
+    @DisplayName("공지 알림 발송")
+    class BroadcastNotice {
+
+        @Test
+        @DisplayName("관리자는 활성 사용자 전체에게 공지 알림을 생성할 수 있다")
+        void broadcastNotice_success() {
+            // given
+            User adminUser = saveUser(900000000002L, "관리자", UserRole.ADMIN, UserStatus.ACTIVE);
+            User firstTargetUser = saveUser(900000000003L, "첫번째대상");
+            User secondTargetUser = saveUser(900000000004L, "두번째대상");
+            saveUser(900000000005L, "탈퇴사용자", UserRole.USER, UserStatus.WITHDRAWN);
+
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            BroadcastNotificationRequestDto request = BroadcastNotificationRequestDto.builder()
+                    .content("  서비스 점검 안내입니다.  ")
+                    .build();
+
+            // when
+            BroadcastNotificationResponseDto response = notificationService.broadcastNotice(request);
+
+            // then
+            assertThat(response.getNotificationCount()).isEqualTo(4L);
+            assertThat(notificationRepository.findAll())
+                    .hasSize(4)
+                    .allSatisfy(notification -> {
+                        assertThat(notification.getNotificationType().getType()).isEqualTo(NotificationTypeCode.NOTICE);
+                        assertThat(notification.getContent()).isEqualTo("서비스 점검 안내입니다.");
+                        assertThat(notification.isRead()).isFalse();
+                        assertThat(notification.isSseSent()).isFalse();
+                    });
+            assertThat(notificationRepository.findAll())
+                    .extracting(notification -> notification.getUser().getUserId())
+                    .containsExactlyInAnyOrder(
+                            currentUser.getUserId(),
+                            adminUser.getUserId(),
+                            firstTargetUser.getUserId(),
+                            secondTargetUser.getUserId()
+                    );
+        }
+
+        @Test
+        @DisplayName("관리자가 아니면 공지 알림을 발송할 수 없다")
+        void broadcastNotice_forbidden() {
+            // given
+            BroadcastNotificationRequestDto request = BroadcastNotificationRequestDto.builder()
+                    .content("서비스 점검 안내입니다.")
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> notificationService.broadcastNotice(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+
+            assertThat(notificationRepository.findAll()).isEmpty();
+        }
+    }
+
+    @Nested
     @DisplayName("알림 읽음 처리")
     class MarkAsRead {
 
@@ -290,12 +352,16 @@ class NotificationServiceTest {
     }
 
     private User saveUser(Long kakaoId, String nickname) {
+        return saveUser(kakaoId, nickname, UserRole.USER, UserStatus.ACTIVE);
+    }
+
+    private User saveUser(Long kakaoId, String nickname, UserRole role, UserStatus status) {
         return userRepository.save(User.builder()
                 .region(region)
                 .kakaoId(kakaoId)
                 .nickname(nickname)
-                .role(UserRole.USER)
-                .status(UserStatus.ACTIVE)
+                .role(role)
+                .status(status)
                 .build());
     }
 

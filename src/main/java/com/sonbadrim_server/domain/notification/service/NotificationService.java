@@ -1,5 +1,7 @@
 package com.sonbadrim_server.domain.notification.service;
 
+import com.sonbadrim_server.domain.notification.dto.request.BroadcastNotificationRequestDto;
+import com.sonbadrim_server.domain.notification.dto.response.BroadcastNotificationResponseDto;
 import com.sonbadrim_server.domain.notification.dto.response.NotificationItemResponseDto;
 import com.sonbadrim_server.domain.notification.dto.response.NotificationListResponseDto;
 import com.sonbadrim_server.domain.notification.entity.Notification;
@@ -9,6 +11,8 @@ import com.sonbadrim_server.domain.notification.event.NotificationSseSendEvent;
 import com.sonbadrim_server.domain.notification.repository.NotificationRepository;
 import com.sonbadrim_server.domain.notification.repository.NotificationTypeRepository;
 import com.sonbadrim_server.domain.user.entity.User;
+import com.sonbadrim_server.domain.user.entity.UserRole;
+import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.exception.CustomException;
@@ -86,6 +90,23 @@ public class NotificationService {
         ));
     }
 
+    public BroadcastNotificationResponseDto broadcastNotice(BroadcastNotificationRequestDto requestDto) {
+        User currentUser = userService.getCurrentUser();
+        validateAdmin(currentUser);
+
+        NotificationType notificationType = notificationTypeRepository.findByType(NotificationTypeCode.NOTICE)
+                .orElseThrow(() -> new CustomException(ErrorCode.INTERNAL_SERVER_ERROR));
+
+        String content = normalizeContent(requestDto.getContent());
+        List<User> targetUsers = userRepository.findByStatus(UserStatus.ACTIVE);
+        List<Notification> notifications = targetUsers.stream()
+                .map(user -> Notification.create(user, notificationType, content))
+                .toList();
+
+        notificationRepository.saveAll(notifications);
+        return new BroadcastNotificationResponseDto(notifications.size());
+    }
+
     private String renderTemplate(NotificationType notificationType, String senderDisplayName) {
         String template = notificationType.getTemplate();
         String sender = senderDisplayName == null ? "알 수 없는 사용자" : senderDisplayName.trim();
@@ -100,5 +121,19 @@ public class NotificationService {
         }
 
         return rendered.trim();
+    }
+
+    private void validateAdmin(User user) {
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    private String normalizeContent(String content) {
+        String normalized = content == null ? "" : content.trim();
+        if (normalized.isBlank() || normalized.length() > MAX_CONTENT_LENGTH) {
+            throw new CustomException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        return normalized;
     }
 }
