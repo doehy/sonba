@@ -3,8 +3,10 @@ package com.sonbadrim_server.global.filter;
 import com.sonbadrim_server.domain.user.entity.User;
 import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
-import com.sonbadrim_server.global.exception.CustomException;
+import tools.jackson.databind.ObjectMapper;
+import com.sonbadrim_server.global.common.CommonResponse;
 import com.sonbadrim_server.global.exception.ErrorCode;
+import com.sonbadrim_server.global.exception.ErrorResponse;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.JwtException;
@@ -16,6 +18,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -39,6 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private String jwtSecret;
 
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -63,15 +67,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             Object tokenType = claims.get("type");
             if (!"access".equals(tokenType)) {
-                throw new CustomException(ErrorCode.UNAUTHORIZED);
+                writeErrorResponse(response, ErrorCode.UNAUTHORIZED);
+                return;
             }
 
             Long userId = Long.valueOf(claims.getSubject());
 
             User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.UNAUTHORIZED));
+                    .orElse(null);
+            if (user == null) {
+                writeErrorResponse(response, ErrorCode.UNAUTHORIZED);
+                return;
+            }
+
             if (user.getStatus() == UserStatus.WITHDRAWN && !isLogoutRequest(request)) {
-                throw new CustomException(ErrorCode.USER_WITHDRAWN);
+                writeErrorResponse(response, ErrorCode.USER_WITHDRAWN);
+                return;
             }
 
             UsernamePasswordAuthenticationToken auth =
@@ -84,7 +95,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 
         } catch (JwtException | IllegalArgumentException e) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED);
+            writeErrorResponse(response, ErrorCode.UNAUTHORIZED);
+            return;
         }
 
         filterChain.doFilter(request, response);
@@ -98,5 +110,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private boolean isLogoutRequest(HttpServletRequest request) {
         return "/auth/logout".equals(request.getRequestURI())
                 && "POST".equalsIgnoreCase(request.getMethod());
+    }
+
+    private void writeErrorResponse(HttpServletResponse response, ErrorCode errorCode) throws IOException {
+        SecurityContextHolder.clearContext();
+        response.setStatus(errorCode.getStatus());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(errorCode.name())
+                .message(errorCode.getMessage())
+                .build();
+
+        response.getWriter().write(objectMapper.writeValueAsString(CommonResponse.error(errorResponse)));
     }
 }
