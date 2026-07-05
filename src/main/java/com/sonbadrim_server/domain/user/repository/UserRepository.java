@@ -5,6 +5,7 @@ import com.sonbadrim_server.domain.user.entity.UserStatus;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +17,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User>findByUserId(Long userId);
 
     List<User> findByStatus(UserStatus status);
+
+    @Query("""
+            select u.userId
+            from User u
+            where u.status = :status
+              and u.userId > :lastUserId
+            order by u.userId asc
+            """)
+    List<Long> findUserIdsByStatusAfterId(
+            @Param("status") UserStatus status,
+            @Param("lastUserId") Long lastUserId,
+            Pageable pageable
+    );
 
     @Query("""
             select u
