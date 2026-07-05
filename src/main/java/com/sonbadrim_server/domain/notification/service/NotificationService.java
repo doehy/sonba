@@ -8,6 +8,7 @@ import com.sonbadrim_server.domain.notification.entity.Notification;
 import com.sonbadrim_server.domain.notification.entity.NotificationType;
 import com.sonbadrim_server.domain.notification.entity.NotificationTypeCode;
 import com.sonbadrim_server.domain.notification.event.NotificationSseSendEvent;
+import com.sonbadrim_server.domain.notification.repository.NotificationBulkRepository;
 import com.sonbadrim_server.domain.notification.repository.NotificationRepository;
 import com.sonbadrim_server.domain.notification.repository.NotificationTypeRepository;
 import com.sonbadrim_server.domain.user.entity.User;
@@ -20,6 +21,7 @@ import com.sonbadrim_server.global.exception.ErrorCode;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
@@ -31,8 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationService {
 
     private static final int MAX_CONTENT_LENGTH = 255;
+    private static final int BROADCAST_CHUNK_SIZE = 1_000;
 
     private final NotificationRepository notificationRepository;
+    private final NotificationBulkRepository notificationBulkRepository;
     private final NotificationTypeRepository notificationTypeRepository;
     private final UserRepository userRepository;
     private final UserService userService;
@@ -98,13 +102,32 @@ public class NotificationService {
                 .orElseThrow(() -> new CustomException(ErrorCode.INTERNAL_SERVER_ERROR));
 
         String content = normalizeContent(requestDto.getContent());
-        List<User> targetUsers = userRepository.findByStatus(UserStatus.ACTIVE);
-        List<Notification> notifications = targetUsers.stream()
-                .map(user -> Notification.create(user, notificationType, content))
-                .toList();
+        long notificationCount = createNoticeNotificationsInChunks(notificationType.getNotificationTypeId(), content);
+        return new BroadcastNotificationResponseDto(notificationCount);
+    }
 
-        notificationRepository.saveAll(notifications);
-        return new BroadcastNotificationResponseDto(notifications.size());
+    private long createNoticeNotificationsInChunks(Integer notificationTypeId, String content) {
+        long lastUserId = 0L;
+        long notificationCount = 0L;
+        Pageable chunkRequest = PageRequest.of(0, BROADCAST_CHUNK_SIZE);
+
+        while (true) {
+            List<Long> userIds = userRepository.findUserIdsByStatusAfterId(
+                    UserStatus.ACTIVE,
+                    lastUserId,
+                    chunkRequest
+            );
+
+            if (userIds.isEmpty()) {
+                break;
+            }
+
+            notificationBulkRepository.saveNoticeNotifications(userIds, notificationTypeId, content);
+            notificationCount += userIds.size();
+            lastUserId = userIds.getLast();
+        }
+
+        return notificationCount;
     }
 
     private String renderTemplate(NotificationType notificationType, String senderDisplayName) {
