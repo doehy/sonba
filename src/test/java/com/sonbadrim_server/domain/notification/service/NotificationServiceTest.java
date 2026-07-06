@@ -1,11 +1,15 @@
 package com.sonbadrim_server.domain.notification.service;
 
 import com.sonbadrim_server.domain.notification.dto.request.BroadcastNotificationRequestDto;
-import com.sonbadrim_server.domain.notification.dto.response.BroadcastNotificationResponseDto;
+import com.sonbadrim_server.domain.notification.dto.response.BroadcastNotificationStartResponseDto;
+import com.sonbadrim_server.domain.notification.dto.response.BroadcastNotificationStatusResponseDto;
 import com.sonbadrim_server.domain.notification.dto.response.NotificationListResponseDto;
 import com.sonbadrim_server.domain.notification.entity.Notification;
+import com.sonbadrim_server.domain.notification.entity.NotificationBroadcast;
+import com.sonbadrim_server.domain.notification.entity.NotificationBroadcastStatus;
 import com.sonbadrim_server.domain.notification.entity.NotificationType;
 import com.sonbadrim_server.domain.notification.entity.NotificationTypeCode;
+import com.sonbadrim_server.domain.notification.repository.NotificationBroadcastRepository;
 import com.sonbadrim_server.domain.notification.repository.NotificationRepository;
 import com.sonbadrim_server.domain.notification.repository.NotificationTypeRepository;
 import com.sonbadrim_server.domain.region.entity.Region;
@@ -48,6 +52,9 @@ class NotificationServiceTest {
 
     @Autowired
     private NotificationRepository notificationRepository;
+
+    @Autowired
+    private NotificationBroadcastRepository notificationBroadcastRepository;
 
     @Autowired
     private NotificationTypeRepository notificationTypeRepository;
@@ -207,58 +214,100 @@ class NotificationServiceTest {
     class BroadcastNotice {
 
         @Test
-        @DisplayName("관리자는 활성 사용자 전체에게 공지 알림을 생성할 수 있다")
-        void broadcastNotice_success() {
-            // given
-            User adminUser = saveUser(900000000002L, "관리자", UserRole.ADMIN, UserStatus.ACTIVE);
-            User firstTargetUser = saveUser(900000000003L, "첫번째대상");
-            User secondTargetUser = saveUser(900000000004L, "두번째대상");
-            saveUser(900000000005L, "탈퇴사용자", UserRole.USER, UserStatus.WITHDRAWN);
-
-            given(userService.getCurrentUser()).willReturn(adminUser);
-
-            BroadcastNotificationRequestDto request = BroadcastNotificationRequestDto.builder()
-                    .content("  서비스 점검 안내입니다.  ")
-                    .build();
-
-            // when
-            BroadcastNotificationResponseDto response = notificationService.broadcastNotice(request);
-
-            // then
-            assertThat(response.getNotificationCount()).isEqualTo(4L);
-            assertThat(notificationRepository.findAll())
-                    .hasSize(4)
-                    .allSatisfy(notification -> {
-                        assertThat(notification.getNotificationType().getType()).isEqualTo(NotificationTypeCode.NOTICE);
-                        assertThat(notification.getContent()).isEqualTo("서비스 점검 안내입니다.");
-                        assertThat(notification.isRead()).isFalse();
-                        assertThat(notification.isSseSent()).isFalse();
-                    });
-            assertThat(notificationRepository.findAll())
-                    .extracting(notification -> notification.getUser().getUserId())
-                    .containsExactlyInAnyOrder(
-                            currentUser.getUserId(),
-                            adminUser.getUserId(),
-                            firstTargetUser.getUserId(),
-                            secondTargetUser.getUserId()
-                    );
-        }
-
-        @Test
-        @DisplayName("관리자가 아니면 공지 알림을 발송할 수 없다")
-        void broadcastNotice_forbidden() {
+        @DisplayName("관리자가 아니면 공지 알림 발송 작업을 시작할 수 없다")
+        void startBroadcastNotice_forbidden() {
             // given
             BroadcastNotificationRequestDto request = BroadcastNotificationRequestDto.builder()
                     .content("서비스 점검 안내입니다.")
                     .build();
 
             // when & then
-            assertThatThrownBy(() -> notificationService.broadcastNotice(request))
+            assertThatThrownBy(() -> notificationService.startBroadcastNotice(request))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.FORBIDDEN);
 
             assertThat(notificationRepository.findAll()).isEmpty();
+            assertThat(notificationBroadcastRepository.findAll()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("관리자는 공지 알림 발송 작업을 시작할 수 있다")
+        void startBroadcastNotice_success() {
+            // given
+            User adminUser = saveUser(900000000006L, "비동기관리자", UserRole.ADMIN, UserStatus.ACTIVE);
+            saveUser(900000000007L, "비동기대상");
+
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            BroadcastNotificationRequestDto request = BroadcastNotificationRequestDto.builder()
+                    .content("  전체 공지입니다.  ")
+                    .build();
+
+            // when
+            BroadcastNotificationStartResponseDto response = notificationService.startBroadcastNotice(request);
+
+            // then
+            assertThat(response.getBroadcastId()).isNotNull();
+            assertThat(response.getStatus()).isEqualTo(NotificationBroadcastStatus.PENDING);
+
+            NotificationBroadcast broadcast = notificationBroadcastRepository.findById(response.getBroadcastId())
+                    .orElseThrow();
+            assertThat(broadcast.getNotificationType().getType()).isEqualTo(NotificationTypeCode.NOTICE);
+            assertThat(broadcast.getContent()).isEqualTo("전체 공지입니다.");
+            assertThat(broadcast.getStatus()).isEqualTo(NotificationBroadcastStatus.PENDING);
+            assertThat(broadcast.getTotalTargetCount()).isEqualTo(3L);
+            assertThat(broadcast.getProcessedCount()).isZero();
+            assertThat(broadcast.getFailedCount()).isZero();
+        }
+
+        @Test
+        @DisplayName("관리자는 공지 알림 발송 작업의 진행 상태를 조회할 수 있다")
+        void getBroadcastStatus_success() {
+            // given
+            User adminUser = saveUser(900000000008L, "상태조회관리자", UserRole.ADMIN, UserStatus.ACTIVE);
+            NotificationType noticeType = notificationTypeRepository.findByType(NotificationTypeCode.NOTICE)
+                    .orElseThrow();
+            NotificationBroadcast broadcast = notificationBroadcastRepository.save(
+                    NotificationBroadcast.create(noticeType, "전체 공지입니다.", 10L)
+            );
+
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            // when
+            BroadcastNotificationStatusResponseDto response =
+                    notificationService.getBroadcastStatus(broadcast.getNotificationBroadcastId());
+
+            // then
+            assertThat(response.getBroadcastId()).isEqualTo(broadcast.getNotificationBroadcastId());
+            assertThat(response.getStatus()).isEqualTo(NotificationBroadcastStatus.PENDING);
+            assertThat(response.getTotalTargetCount()).isEqualTo(10L);
+            assertThat(response.getProcessedCount()).isZero();
+            assertThat(response.getFailedCount()).isZero();
+        }
+
+        @Test
+        @DisplayName("관리자가 아니면 공지 알림 발송 작업을 조회할 수 없다")
+        void getBroadcastStatus_forbidden() {
+            // when & then
+            assertThatThrownBy(() -> notificationService.getBroadcastStatus(1L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 공지 알림 발송 작업은 조회할 수 없다")
+        void getBroadcastStatus_notFound() {
+            // given
+            User adminUser = saveUser(900000000009L, "없는작업조회관리자", UserRole.ADMIN, UserStatus.ACTIVE);
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            // when & then
+            assertThatThrownBy(() -> notificationService.getBroadcastStatus(999L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.NOTIFICATION_BROADCAST_NOT_FOUND);
         }
     }
 

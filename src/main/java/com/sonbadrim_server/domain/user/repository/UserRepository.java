@@ -18,6 +18,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findByStatus(UserStatus status);
 
+    long countByStatus(UserStatus status);
+
     @Query("""
             select u.userId
             from User u
