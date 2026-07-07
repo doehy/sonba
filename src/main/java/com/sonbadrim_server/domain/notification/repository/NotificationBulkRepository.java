@@ -2,6 +2,7 @@ package com.sonbadrim_server.domain.notification.repository;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -16,29 +17,36 @@ public class NotificationBulkRepository {
 
     private final JdbcTemplate jdbcTemplate;
 
-    public void saveNoticeNotifications(List<Long> userIds, Integer notificationTypeId, String content) {
+    public int saveNoticeNotifications(
+            Long broadcastId,
+            List<Long> userIds,
+            Integer notificationTypeId,
+            String content
+    ) {
         String sql = """
-                insert into notification (
+                insert ignore into notification (
                     user_id,
                     notification_type_id,
+                    notification_broadcast_id,
                     content,
                     is_read,
                     sse_sent,
                     created_at,
                     modified_at
                 )
-                values (?, ?, ?, false, false, ?, ?)
+                values (?, ?, ?, ?, false, false, ?, ?)
                 """;
         Timestamp now = Timestamp.valueOf(LocalDateTime.now());
 
-        jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
+        int[] updateCounts = jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
             @Override
             public void setValues(PreparedStatement ps, int i) throws SQLException {
                 ps.setLong(1, userIds.get(i));
                 ps.setInt(2, notificationTypeId);
-                ps.setString(3, content);
-                ps.setTimestamp(4, now);
+                ps.setLong(3, broadcastId);
+                ps.setString(4, content);
                 ps.setTimestamp(5, now);
+                ps.setTimestamp(6, now);
             }
 
             @Override
@@ -46,5 +54,19 @@ public class NotificationBulkRepository {
                 return userIds.size();
             }
         });
+        return countInsertedRows(updateCounts, userIds.size());
+    }
+
+    private int countInsertedRows(int[] updateCounts, int requestedCount) {
+        int insertedCount = 0;
+        for (int updateCount : updateCounts) {
+            if (updateCount == Statement.SUCCESS_NO_INFO) {
+                return requestedCount;
+            }
+            if (updateCount > 0) {
+                insertedCount += updateCount;
+            }
+        }
+        return insertedCount;
     }
 }

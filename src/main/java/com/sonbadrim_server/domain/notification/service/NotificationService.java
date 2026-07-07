@@ -7,6 +7,7 @@ import com.sonbadrim_server.domain.notification.dto.response.NotificationItemRes
 import com.sonbadrim_server.domain.notification.dto.response.NotificationListResponseDto;
 import com.sonbadrim_server.domain.notification.entity.Notification;
 import com.sonbadrim_server.domain.notification.entity.NotificationBroadcast;
+import com.sonbadrim_server.domain.notification.entity.NotificationBroadcastStatus;
 import com.sonbadrim_server.domain.notification.entity.NotificationType;
 import com.sonbadrim_server.domain.notification.entity.NotificationTypeCode;
 import com.sonbadrim_server.domain.notification.event.NotificationBroadcastRequestedEvent;
@@ -132,6 +133,25 @@ public class NotificationService {
                 broadcast.getFailureReason(),
                 broadcast.getCreatedAt(),
                 broadcast.getModifiedAt()
+        );
+    }
+
+    public BroadcastNotificationStartResponseDto retryBroadcastNotice(Long broadcastId) {
+        User currentUser = userService.getCurrentUser();
+        validateAdmin(currentUser);
+
+        NotificationBroadcast broadcast = notificationBroadcastRepository.findByIdForUpdate(broadcastId)
+                .orElseThrow(() -> new CustomException(ErrorCode.NOTIFICATION_BROADCAST_NOT_FOUND));
+
+        if (broadcast.getStatus() != NotificationBroadcastStatus.FAILED) {
+            throw new CustomException(ErrorCode.NOTIFICATION_BROADCAST_NOT_RETRYABLE);
+        }
+
+        broadcast.retry();
+        eventPublisher.publishEvent(new NotificationBroadcastRequestedEvent(broadcast.getNotificationBroadcastId()));
+        return new BroadcastNotificationStartResponseDto(
+                broadcast.getNotificationBroadcastId(),
+                broadcast.getStatus()
         );
     }
 

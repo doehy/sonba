@@ -309,6 +309,55 @@ class NotificationServiceTest {
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.NOTIFICATION_BROADCAST_NOT_FOUND);
         }
+
+        @Test
+        @DisplayName("관리자는 실패한 공지 알림 발송 작업을 재시도할 수 있다")
+        void retryBroadcastNotice_success() {
+            // given
+            User adminUser = saveUser(900000000010L, "재시도관리자", UserRole.ADMIN, UserStatus.ACTIVE);
+            NotificationType noticeType = notificationTypeRepository.findByType(NotificationTypeCode.NOTICE)
+                    .orElseThrow();
+            NotificationBroadcast broadcast = notificationBroadcastRepository.save(
+                    NotificationBroadcast.create(noticeType, "전체 공지입니다.", 10L)
+            );
+            broadcast.start();
+            broadcast.recordProcessedChunk(3L, 3L);
+            broadcast.fail("일시 오류");
+
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            // when
+            BroadcastNotificationStartResponseDto response =
+                    notificationService.retryBroadcastNotice(broadcast.getNotificationBroadcastId());
+
+            // then
+            assertThat(response.getBroadcastId()).isEqualTo(broadcast.getNotificationBroadcastId());
+            assertThat(response.getStatus()).isEqualTo(NotificationBroadcastStatus.PENDING);
+            assertThat(broadcast.getStatus()).isEqualTo(NotificationBroadcastStatus.PENDING);
+            assertThat(broadcast.getProcessedCount()).isEqualTo(3L);
+            assertThat(broadcast.getLastProcessedUserId()).isEqualTo(3L);
+            assertThat(broadcast.getFailureReason()).isNull();
+        }
+
+        @Test
+        @DisplayName("실패 상태가 아닌 공지 알림 발송 작업은 재시도할 수 없다")
+        void retryBroadcastNotice_notRetryable() {
+            // given
+            User adminUser = saveUser(900000000011L, "재시도불가관리자", UserRole.ADMIN, UserStatus.ACTIVE);
+            NotificationType noticeType = notificationTypeRepository.findByType(NotificationTypeCode.NOTICE)
+                    .orElseThrow();
+            NotificationBroadcast broadcast = notificationBroadcastRepository.save(
+                    NotificationBroadcast.create(noticeType, "전체 공지입니다.", 10L)
+            );
+
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            // when & then
+            assertThatThrownBy(() -> notificationService.retryBroadcastNotice(broadcast.getNotificationBroadcastId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.NOTIFICATION_BROADCAST_NOT_RETRYABLE);
+        }
     }
 
     @Nested

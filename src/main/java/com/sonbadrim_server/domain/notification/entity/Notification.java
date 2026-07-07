@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import com.sonbadrim_server.global.BaseTimeEntity;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -17,7 +18,13 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "notification")
+@Table(
+        name = "notification",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_notification_broadcast_user",
+                columnNames = {"notification_broadcast_id", "user_id"}
+        )
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Notification extends BaseTimeEntity {
 
@@ -33,6 +40,10 @@ public class Notification extends BaseTimeEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "notification_type_id", nullable = false)
     private NotificationType notificationType;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "notification_broadcast_id")
+    private NotificationBroadcast notificationBroadcast;
 
     @Column(name = "content", nullable = false, length = 255)
     private String content;

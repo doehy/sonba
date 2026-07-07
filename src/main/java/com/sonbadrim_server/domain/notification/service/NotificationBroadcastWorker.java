@@ -3,6 +3,7 @@ package com.sonbadrim_server.domain.notification.service;
 import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -19,8 +20,11 @@ public class NotificationBroadcastWorker {
 
     public void process(Long broadcastId) {
         try {
-            NotificationBroadcastJobSnapshot job = notificationBroadcastProgressService.start(broadcastId);
-            processChunks(broadcastId, job);
+            Optional<NotificationBroadcastJobSnapshot> job = notificationBroadcastProgressService.start(broadcastId);
+            if (job.isEmpty()) {
+                return;
+            }
+            processChunks(broadcastId, job.get());
             notificationBroadcastProgressService.complete(broadcastId);
         } catch (Exception e) {
             notificationBroadcastProgressService.fail(broadcastId, e.getMessage());
@@ -28,7 +32,7 @@ public class NotificationBroadcastWorker {
     }
 
     private void processChunks(Long broadcastId, NotificationBroadcastJobSnapshot job) {
-        long lastUserId = 0L;
+        long lastUserId = job.lastProcessedUserId();
         Pageable chunkRequest = PageRequest.of(0, BROADCAST_CHUNK_SIZE);
 
         while (true) {

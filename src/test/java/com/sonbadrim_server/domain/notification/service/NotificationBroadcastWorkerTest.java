@@ -3,6 +3,7 @@ package com.sonbadrim_server.domain.notification.service;
 import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -40,7 +41,7 @@ class NotificationBroadcastWorkerTest {
             // given
             PageRequest chunkRequest = PageRequest.of(0, 1_000);
             given(notificationBroadcastProgressService.start(1L))
-                    .willReturn(new NotificationBroadcastJobSnapshot(2, "전체 공지입니다."));
+                    .willReturn(Optional.of(new NotificationBroadcastJobSnapshot(2, "전체 공지입니다.", 0L)));
             given(userRepository.findUserIdsByStatusAfterId(UserStatus.ACTIVE, 0L, chunkRequest))
                     .willReturn(List.of(1L, 2L));
             given(userRepository.findUserIdsByStatusAfterId(UserStatus.ACTIVE, 2L, chunkRequest))
@@ -67,7 +68,7 @@ class NotificationBroadcastWorkerTest {
             // given
             PageRequest chunkRequest = PageRequest.of(0, 1_000);
             given(notificationBroadcastProgressService.start(1L))
-                    .willReturn(new NotificationBroadcastJobSnapshot(2, "전체 공지입니다."));
+                    .willReturn(Optional.of(new NotificationBroadcastJobSnapshot(2, "전체 공지입니다.", 0L)));
             willThrow(new RuntimeException("사용자 조회 실패"))
                     .given(userRepository)
                     .findUserIdsByStatusAfterId(UserStatus.ACTIVE, 0L, chunkRequest);
@@ -81,6 +82,47 @@ class NotificationBroadcastWorkerTest {
             verify(notificationBroadcastProgressService, never())
                     .saveChunk(eq(1L), eq(List.of(1L)), eq(2), eq("전체 공지입니다."));
             verify(notificationBroadcastProgressService, never()).complete(1L);
+        }
+
+        @Test
+        @DisplayName("이미 처리 중인 공지 알림 발송 작업은 중복 처리하지 않는다")
+        void process_alreadyStarted() {
+            // given
+            given(notificationBroadcastProgressService.start(1L))
+                    .willReturn(Optional.empty());
+
+            // when
+            notificationBroadcastWorker.process(1L);
+
+            // then
+            verify(notificationBroadcastProgressService).start(1L);
+            verify(userRepository, never())
+                    .findUserIdsByStatusAfterId(eq(UserStatus.ACTIVE), eq(0L), eq(PageRequest.of(0, 1_000)));
+            verify(notificationBroadcastProgressService, never())
+                    .saveChunk(eq(1L), eq(List.of(1L)), eq(2), eq("전체 공지입니다."));
+            verify(notificationBroadcastProgressService, never()).complete(1L);
+            verify(notificationBroadcastProgressService, never()).fail(eq(1L), eq("전체 공지입니다."));
+        }
+
+        @Test
+        @DisplayName("재시도 작업은 마지막 처리 사용자 ID 이후부터 처리한다")
+        void process_resumeAfterLastProcessedUserId() {
+            // given
+            PageRequest chunkRequest = PageRequest.of(0, 1_000);
+            given(notificationBroadcastProgressService.start(1L))
+                    .willReturn(Optional.of(new NotificationBroadcastJobSnapshot(2, "전체 공지입니다.", 10L)));
+            given(userRepository.findUserIdsByStatusAfterId(UserStatus.ACTIVE, 10L, chunkRequest))
+                    .willReturn(List.of(11L, 12L));
+            given(userRepository.findUserIdsByStatusAfterId(UserStatus.ACTIVE, 12L, chunkRequest))
+                    .willReturn(List.of());
+
+            // when
+            notificationBroadcastWorker.process(1L);
+
+            // then
+            verify(notificationBroadcastProgressService)
+                    .saveChunk(1L, List.of(11L, 12L), 2, "전체 공지입니다.");
+            verify(notificationBroadcastProgressService).complete(1L);
         }
     }
 }

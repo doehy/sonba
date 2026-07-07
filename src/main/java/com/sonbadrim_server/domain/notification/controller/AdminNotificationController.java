@@ -44,4 +44,13 @@ public class AdminNotificationController {
         BroadcastNotificationStatusResponseDto response = notificationService.getBroadcastStatus(broadcastId);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
+
+    @Operation(summary = "공지 알림 발송 작업 재시도", description = "실패한 공지 알림 발송 작업을 마지막 처리 사용자 이후부터 재시도합니다.")
+    @PostMapping("/broadcasts/{broadcastId}/retry")
+    public ResponseEntity<CommonResponse<BroadcastNotificationStartResponseDto>> retryBroadcastNotice(
+            @PathVariable Long broadcastId
+    ) {
+        BroadcastNotificationStartResponseDto response = notificationService.retryBroadcastNotice(broadcastId);
+        return ResponseEntity.accepted().body(CommonResponse.success(response));
+    }
 }
