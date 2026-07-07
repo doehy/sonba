@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -44,7 +45,7 @@ public class SearchService {
             Integer regionId,
             Pageable pageable
     ) {
-        String normalizedKeyword = normalizeKeyword(keyword);
+        String normalizedKeyword = normalizeSearchKeyword(keyword);
         String normalizedCity = normalizeKeyword(city);
         List<Integer> normalizedCategoryIds = normalizeList(categoryIds);
         String cityFilter = regionId != null ? null : normalizedCity;
@@ -145,6 +146,15 @@ public class SearchService {
         }
         String trimmed = keyword.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String normalizeSearchKeyword(String keyword) {
+        String normalizedKeyword = normalizeKeyword(keyword);
+        if (normalizedKeyword == null) {
+            return null;
+        }
+        String withoutSpaces = normalizedKeyword.replaceAll("\\s+", "");
+        return withoutSpaces.isEmpty() ? null : withoutSpaces.toLowerCase(Locale.ROOT);
     }
 
     /**

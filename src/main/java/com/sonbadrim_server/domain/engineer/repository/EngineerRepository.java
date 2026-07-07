@@ -37,8 +37,8 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long> {
             join e.region r
             where (
                     :keyword is null
-                    or lower(e.engineerName) like lower(concat('%', :keyword, '%'))
-                    or lower(e.headline) like lower(concat('%', :keyword, '%'))
+                    or lower(function('replace', e.engineerName, ' ', '')) like lower(concat('%', :keyword, '%'))
+                    or lower(function('replace', e.headline, ' ', '')) like lower(concat('%', :keyword, '%'))
             )
             and (:city is null or r.city = :city)
             and (:regionId is null or r.regionId = :regionId)
