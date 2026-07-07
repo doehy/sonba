@@ -31,13 +31,10 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long> {
 """)
     Optional<Engineer> findDetailByEngineerId(Long engineerId);
 
-    @Query(
-            value = """
-            select distinct e
+    @Query("""
+            select e
             from Engineer e
             join e.region r
-            left join e.engineerCategories ec
-            left join ec.category c
             where (
                     :keyword is null
                     or lower(e.engineerName) like lower(concat('%', :keyword, '%'))
@@ -45,25 +42,17 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long> {
             )
             and (:city is null or r.city = :city)
             and (:regionId is null or r.regionId = :regionId)
-            and (:categoryIds is null or c.categoryId in :categoryIds)
-            """,
-            countQuery = """
-            select count(distinct e)
-            from Engineer e
-            join e.region r
-            left join e.engineerCategories ec
-            left join ec.category c
-            where (
-                    :keyword is null
-                    or lower(e.engineerName) like lower(concat('%', :keyword, '%'))
-                    or lower(e.headline) like lower(concat('%', :keyword, '%'))
+            and (
+                    :categoryIds is null
+                    or exists (
+                        select 1
+                        from EngineerCategory ec
+                        where ec.engineer = e
+                          and ec.category.categoryId in :categoryIds
+                    )
             )
-            and (:city is null or r.city = :city)
-            and (:regionId is null or r.regionId = :regionId)
-            and (:categoryIds is null or c.categoryId in :categoryIds)
-            """
-    )
-    Page<Engineer> searchEngineers(
+            """)
+    Slice<Engineer> searchEngineers(
             String keyword,
             List<Integer> categoryIds,
             String city,

@@ -12,11 +12,14 @@ import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceUnitUtil;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +52,17 @@ class EngineerRepositoryTest {
     @Autowired
     private EntityManager entityManager;
 
+    private Region region;
+    private Category kitchen;
+    private Category tile;
+
+    @BeforeEach
+    void setUp() {
+        region = regionRepository.findAllByOrderByRegionIdAsc().getFirst();
+        kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
+        tile = categoryRepository.findByCategoryName("타일").orElseThrow();
+    }
+
     @Nested
     @DisplayName("기술자 상세 조회")
     class FindDetailByEngineerId {
@@ -57,7 +71,6 @@ class EngineerRepositoryTest {
         @DisplayName("기술자 상세 정보와 연관된 사용자, 지역, 시공 분야를 함께 조회할 수 있다")
         void findDetailByEngineerId_success() {
             // given
-            Region region = regionRepository.findAllByOrderByRegionIdAsc().getFirst();
             User user = userRepository.save(User.builder()
                     .region(region)
                     .kakaoId(900000000001L)
@@ -77,8 +90,6 @@ class EngineerRepositoryTest {
                     "상세기술자",
                     "주방 시공 전문"
             ));
-            Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
-            Category tile = categoryRepository.findByCategoryName("타일").orElseThrow();
             engineerCategoryRepository.saveAll(List.of(
                     EngineerCategory.create(engineer, kitchen),
                     EngineerCategory.create(engineer, tile)
@@ -119,5 +130,81 @@ class EngineerRepositoryTest {
             // then
             assertThat(result).isEmpty();
         }
+    }
+
+    @Nested
+    @DisplayName("기술자 검색")
+    class SearchEngineers {
+
+        @Test
+        @DisplayName("카테고리 필터에 맞는 기술자를 중복 없이 조회한다")
+        void searchEngineers_categoryFilter() {
+            // given
+            Engineer firstEngineer = saveEngineer(
+                    900000000002L,
+                    "첫번째유저",
+                    "01022223333",
+                    "타일기술자",
+                    "타일과 주방 시공"
+            );
+            Engineer secondEngineer = saveEngineer(
+                    900000000003L,
+                    "두번째유저",
+                    "01033334444",
+                    "주방기술자",
+                    "주방 시공"
+            );
+            engineerCategoryRepository.saveAll(List.of(
+                    EngineerCategory.create(firstEngineer, kitchen),
+                    EngineerCategory.create(firstEngineer, tile),
+                    EngineerCategory.create(secondEngineer, kitchen)
+            ));
+
+            entityManager.flush();
+            entityManager.clear();
+
+            // when
+            Slice<Engineer> result = engineerRepository.searchEngineers(
+                    null,
+                    List.of(tile.getCategoryId()),
+                    null,
+                    null,
+                    PageRequest.of(0, 10)
+            );
+
+            // then
+            assertThat(result.hasNext()).isFalse();
+            assertThat(result.getContent())
+                    .extracting(Engineer::getEngineerId)
+                    .containsExactly(firstEngineer.getEngineerId());
+        }
+    }
+
+    private Engineer saveEngineer(
+            Long kakaoId,
+            String nickname,
+            String phone,
+            String engineerName,
+            String headline
+    ) {
+        User user = userRepository.save(User.builder()
+                .region(region)
+                .kakaoId(kakaoId)
+                .nickname(nickname)
+                .role(UserRole.USER)
+                .status(UserStatus.ACTIVE)
+                .build());
+        return engineerRepository.save(Engineer.create(
+                user,
+                region,
+                "profile.jpg",
+                "상세 소개",
+                "테스트 상호",
+                "테스트 주소",
+                phone,
+                true,
+                engineerName,
+                headline
+        ));
     }
 }

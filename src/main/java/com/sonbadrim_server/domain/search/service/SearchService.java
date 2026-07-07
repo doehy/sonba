@@ -10,7 +10,6 @@ import com.sonbadrim_server.domain.search.dto.response.SearchSuggestionResponseD
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -50,7 +49,7 @@ public class SearchService {
         List<Integer> normalizedCategoryIds = normalizeList(categoryIds);
         String cityFilter = regionId != null ? null : normalizedCity;
 
-        Page<Engineer> engineerPage = engineerRepository.searchEngineers(
+        Slice<Engineer> engineerSlice = engineerRepository.searchEngineers(
                 normalizedKeyword,
                 normalizedCategoryIds,
                 cityFilter,
@@ -59,10 +58,10 @@ public class SearchService {
         );
 
         Map<Long, List<String>> categoryMap = getCategoryMap(
-                engineerPage.getContent().stream().map(Engineer::getEngineerId).toList()
+                engineerSlice.getContent().stream().map(Engineer::getEngineerId).toList()
         );
 
-        List<EngineerSummaryResponseDto> items = engineerPage.getContent().stream()
+        List<EngineerSummaryResponseDto> items = engineerSlice.getContent().stream()
                 .map(engineer -> EngineerSummaryResponseDto.builder()
                 .engineerId(engineer.getEngineerId())
                 .engineerName(engineer.getEngineerName())
@@ -73,7 +72,7 @@ public class SearchService {
         )
                 .toList();
 
-        return new SearchEngineerListResponseDto(items, engineerPage.hasNext());
+        return new SearchEngineerListResponseDto(items, engineerSlice.hasNext());
     }
 
     /**
