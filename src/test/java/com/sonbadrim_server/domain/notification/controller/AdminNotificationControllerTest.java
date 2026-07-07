@@ -202,4 +202,43 @@ class AdminNotificationControllerTest {
             verify(notificationService).getBroadcastStatus(999L);
         }
     }
+
+    @Nested
+    @DisplayName("공지 알림 발송 작업 재시도")
+    class RetryBroadcastNotice {
+
+        @Test
+        @DisplayName("관리자는 실패한 공지 알림 발송 작업의 재시도를 요청할 수 있다")
+        void retryBroadcastNotice_success() throws Exception {
+            // given
+            given(notificationService.retryBroadcastNotice(1L))
+                    .willReturn(new BroadcastNotificationStartResponseDto(1L, NotificationBroadcastStatus.PENDING));
+
+            // when & then
+            mockMvc.perform(post("/admin/notifications/broadcasts/{broadcastId}/retry", 1L))
+                    .andExpect(status().isAccepted())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.broadcastId").value(1L))
+                    .andExpect(jsonPath("$.data.status").value("PENDING"));
+
+            verify(notificationService).retryBroadcastNotice(1L);
+        }
+
+        @Test
+        @DisplayName("실패 상태가 아닌 공지 알림 발송 작업은 재시도할 수 없다")
+        void retryBroadcastNotice_notRetryable() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.NOTIFICATION_BROADCAST_NOT_RETRYABLE))
+                    .given(notificationService)
+                    .retryBroadcastNotice(1L);
+
+            // when & then
+            mockMvc.perform(post("/admin/notifications/broadcasts/{broadcastId}/retry", 1L))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("NOTIFICATION_BROADCAST_NOT_RETRYABLE"));
+
+            verify(notificationService).retryBroadcastNotice(1L);
+        }
+    }
 }

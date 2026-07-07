@@ -53,6 +53,7 @@ public enum ErrorCode {
     // Notification
     NOTIFICATION_NOT_FOUND(404, "NOTIFICATION_404_1", "알림을 찾을 수 없습니다."),
     NOTIFICATION_BROADCAST_NOT_FOUND(404, "NOTIFICATION_404_2", "공지 알림 발송 작업을 찾을 수 없습니다."),
+    NOTIFICATION_BROADCAST_NOT_RETRYABLE(409, "NOTIFICATION_409_1", "실패한 공지 알림 발송 작업만 재시도할 수 있습니다."),
 
     // Image
     INVALID_PROFILE_IMAGE(400, "IMAGE_400_1", "유효하지 않은 프로필 이미지입니다."),

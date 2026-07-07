@@ -44,6 +44,9 @@ public class NotificationBroadcast extends BaseTimeEntity {
     @Column(name = "processed_count", nullable = false)
     private long processedCount;
 
+    @Column(name = "last_processed_user_id", nullable = false)
+    private long lastProcessedUserId;
+
     @Column(name = "failed_count", nullable = false)
     private long failedCount;
 
@@ -61,6 +64,7 @@ public class NotificationBroadcast extends BaseTimeEntity {
         broadcast.status = NotificationBroadcastStatus.PENDING;
         broadcast.totalTargetCount = totalTargetCount;
         broadcast.processedCount = 0L;
+        broadcast.lastProcessedUserId = 0L;
         broadcast.failedCount = 0L;
         return broadcast;
     }
@@ -70,17 +74,26 @@ public class NotificationBroadcast extends BaseTimeEntity {
         this.failureReason = null;
     }
 
-    public void increaseProcessedCount(long count) {
+    public void recordProcessedChunk(long count, long lastProcessedUserId) {
         this.processedCount += count;
+        this.lastProcessedUserId = lastProcessedUserId;
     }
 
     public void complete() {
         this.status = NotificationBroadcastStatus.COMPLETED;
+        this.failedCount = 0L;
+        this.failureReason = null;
     }
 
     public void fail(String reason) {
         this.status = NotificationBroadcastStatus.FAILED;
         this.failureReason = reason;
+        this.failedCount = Math.max(totalTargetCount - processedCount, 0L);
+    }
+
+    public void retry() {
+        this.status = NotificationBroadcastStatus.PENDING;
+        this.failureReason = null;
         this.failedCount = Math.max(totalTargetCount - processedCount, 0L);
     }
 }
