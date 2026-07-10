@@ -11,7 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 import java.util.Optional;
 
-public interface EngineerRepository extends JpaRepository<Engineer, Long> {
+public interface EngineerRepository extends JpaRepository<Engineer, Long>, EngineerSearchRepository {
 
     boolean existsByUser_UserId(Long userId);
 
@@ -30,35 +30,6 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long> {
     where e.engineerId = :engineerId
 """)
     Optional<Engineer> findDetailByEngineerId(Long engineerId);
-
-    @Query("""
-            select e
-            from Engineer e
-            join e.region r
-            where (
-                    :keyword is null
-                    or lower(function('replace', e.engineerName, ' ', '')) like lower(concat('%', :keyword, '%'))
-                    or lower(function('replace', e.headline, ' ', '')) like lower(concat('%', :keyword, '%'))
-            )
-            and (:city is null or r.city = :city)
-            and (:regionId is null or r.regionId = :regionId)
-            and (
-                    :categoryIds is null
-                    or exists (
-                        select 1
-                        from EngineerCategory ec
-                        where ec.engineer = e
-                          and ec.category.categoryId in :categoryIds
-                    )
-            )
-            """)
-    Slice<Engineer> searchEngineers(
-            String keyword,
-            List<Integer> categoryIds,
-            String city,
-            Integer regionId,
-            Pageable pageable
-    );
 
     @Query("""
             select e
