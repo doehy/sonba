@@ -39,6 +39,10 @@ dependencies {
         annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
         runtimeOnly 'com.mysql:mysql-connector-j'
 
+        // Cache
+        implementation 'org.springframework.boot:spring-boot-starter-cache'
+        implementation 'com.github.ben-manes.caffeine:caffeine'
+
         // Security / 인증인가
         implementation 'org.springframework.boot:spring-boot-starter-security'
         implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'

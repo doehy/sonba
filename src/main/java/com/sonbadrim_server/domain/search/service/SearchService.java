@@ -7,9 +7,11 @@ import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepositor
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
 import com.sonbadrim_server.domain.search.dto.response.SearchEngineerListResponseDto;
 import com.sonbadrim_server.domain.search.dto.response.SearchSuggestionResponseDto;
+import com.sonbadrim_server.global.config.CacheConfig;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -37,6 +39,11 @@ public class SearchService {
     /**
      * keyword + 필터링(category, region) 검색
      */
+    @Cacheable(
+            cacheNames = CacheConfig.SEARCH_ENGINEERS_CACHE,
+            keyGenerator = "searchEngineerKeyGenerator",
+            condition = "#pageable.pageNumber == 0"
+    )
     public SearchEngineerListResponseDto searchEngineers(
             String keyword,
             List<Integer> categoryIds,
