@@ -71,17 +71,6 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long>, Engin
     List<String> findEngineerNameSuggestions(String keyword, Pageable pageable);
 
     @Query("""
-            select distinct e.headline
-            from Engineer e
-            where :keyword is not null
-              and e.headline is not null
-              and e.headline <> ''
-              and lower(e.headline) like lower(concat('%', :keyword, '%'))
-            order by e.headline asc
-            """)
-    List<String> findHeadlineSuggestions(String keyword, Pageable pageable);
-
-    @Query("""
             select e.profileImage
             from Engineer e
             where e.profileImage is not null

@@ -1,10 +1,12 @@
 package com.sonbadrim_server.domain.search.service;
 
+import com.sonbadrim_server.domain.category.repository.CategoryRepository;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
+import com.sonbadrim_server.domain.region.repository.RegionRepository;
 import com.sonbadrim_server.domain.search.dto.response.SearchEngineerListResponseDto;
 import com.sonbadrim_server.domain.search.dto.response.SearchSuggestionResponseDto;
 import com.sonbadrim_server.global.config.CacheConfig;
@@ -35,6 +37,8 @@ public class SearchService {
 
     private final EngineerRepository engineerRepository;
     private final EngineerCategoryRepository engineerCategoryRepository;
+    private final CategoryRepository categoryRepository;
+    private final RegionRepository regionRepository;
 
     /**
      * keyword + 필터링(category, region) 검색
@@ -127,14 +131,18 @@ public class SearchService {
         }
 
         int suggestionSize = normalizeSuggestionSize(size);
-        PageRequest pageRequest = PageRequest.of(0, suggestionSize);
+        PageRequest suggestionPageRequest = PageRequest.of(0, suggestionSize);
 
-        List<String> engineerNames = engineerRepository.findEngineerNameSuggestions(normalizedKeyword, pageRequest);
-        List<String> headlines = engineerRepository.findHeadlineSuggestions(normalizedKeyword, pageRequest);
+        List<String> engineerNames = engineerRepository.findEngineerNameSuggestions(normalizedKeyword, suggestionPageRequest);
+        List<String> categoryNames = categoryRepository.findCategoryNameSuggestions(normalizedKeyword, suggestionPageRequest);
+        List<String> cities = regionRepository.findCitySuggestions(normalizedKeyword, suggestionPageRequest);
+        List<String> districts = regionRepository.findDistrictSuggestions(normalizedKeyword, suggestionPageRequest);
 
         Set<String> merged = new LinkedHashSet<>();
         merged.addAll(engineerNames);
-        merged.addAll(headlines);
+        merged.addAll(categoryNames);
+        merged.addAll(cities);
+        merged.addAll(districts);
 
         List<String> items = merged.stream()
                 .limit(suggestionSize)

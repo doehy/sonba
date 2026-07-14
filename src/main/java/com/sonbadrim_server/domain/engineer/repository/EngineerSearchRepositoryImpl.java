@@ -2,7 +2,6 @@ package com.sonbadrim_server.domain.engineer.repository;
 
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
@@ -15,7 +14,6 @@ import org.springframework.data.domain.SliceImpl;
 
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -38,30 +36,25 @@ public class EngineerSearchRepositoryImpl implements EngineerSearchRepository {
             Pageable pageable
     ) {
         if (keyword != null) {
-            Slice<Engineer> fullTextResult = searchEngineersByFullText(
+            return searchEngineersByFullText(
                     keyword,
                     categoryIds,
                     city,
                     regionId,
                     pageable
             );
-            if (!fullTextResult.isEmpty()) {
-                return fullTextResult;
-            }
         }
 
-        return searchEngineersByLike(keyword, categoryIds, city, regionId, pageable);
+        return searchEngineersWithoutKeyword(categoryIds, city, regionId, pageable);
     }
 
-    private Slice<Engineer> searchEngineersByLike(
-            String keyword,
+    private Slice<Engineer> searchEngineersWithoutKeyword(
             List<Integer> categoryIds,
             String city,
             Integer regionId,
             Pageable pageable
     ) {
         BooleanBuilder where = new BooleanBuilder()
-                .and(keywordContains(normalizeLikeKeyword(keyword)))
                 .and(cityEquals(city))
                 .and(regionIdEquals(regionId))
                 .and(categoryExists(categoryIds));
@@ -154,24 +147,6 @@ public class EngineerSearchRepositoryImpl implements EngineerSearchRepository {
         return sql.toString();
     }
 
-    private BooleanExpression keywordContains(String keyword) {
-        if (keyword == null) {
-            return null;
-        }
-
-        String likeKeyword = "%" + keyword + "%";
-        return normalized(engineer.engineerName).like(likeKeyword)
-                .or(normalized(engineer.headline).like(likeKeyword));
-    }
-
-    private String normalizeLikeKeyword(String keyword) {
-        if (keyword == null) {
-            return null;
-        }
-        String withoutSpaces = keyword.replaceAll("\\s+", "");
-        return withoutSpaces.isEmpty() ? null : withoutSpaces.toLowerCase(Locale.ROOT);
-    }
-
     private String toFullTextBooleanKeyword(String keyword) {
         if (keyword == null || keyword.isBlank()) {
             return null;
@@ -224,15 +199,6 @@ public class EngineerSearchRepositoryImpl implements EngineerSearchRepository {
                         engineerCategory.category.categoryId.in(categoryIds)
                 )
                 .exists();
-    }
-
-    private com.querydsl.core.types.dsl.StringTemplate normalized(
-            com.querydsl.core.types.Expression<String> expression
-    ) {
-        return Expressions.stringTemplate(
-                "lower(replace({0}, ' ', ''))",
-                expression
-        );
     }
 
     private Slice<Engineer> toSlice(List<Engineer> results, Pageable pageable) {

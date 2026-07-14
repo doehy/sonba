@@ -1,8 +1,11 @@
 package com.sonbadrim_server.domain.search.service;
 
+import com.sonbadrim_server.domain.category.repository.CategoryRepository;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
+import com.sonbadrim_server.domain.region.repository.RegionRepository;
 import com.sonbadrim_server.domain.search.dto.response.SearchEngineerListResponseDto;
+import com.sonbadrim_server.domain.search.dto.response.SearchSuggestionResponseDto;
 import com.sonbadrim_server.global.config.CacheConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,6 +45,12 @@ class SearchServiceTest {
 
     @MockitoBean
     private EngineerCategoryRepository engineerCategoryRepository;
+
+    @MockitoBean
+    private CategoryRepository categoryRepository;
+
+    @MockitoBean
+    private RegionRepository regionRepository;
 
     @BeforeEach
     void setUp() {
@@ -136,6 +145,71 @@ class SearchServiceTest {
                     eq(null),
                     eq(pageable)
             );
+        }
+    }
+
+    @Nested
+    @DisplayName("검색 자동완성")
+    class EngineerSuggestions {
+
+        @Test
+        @DisplayName("headline은 자동완성 후보에 포함하지 않는다")
+        void getEngineerSuggestions_excludeHeadline() {
+            // given
+            given(engineerRepository.findEngineerNameSuggestions(eq("안녕하세"), any(PageRequest.class)))
+                    .willReturn(List.of());
+            given(categoryRepository.findCategoryNameSuggestions(eq("안녕하세"), any(PageRequest.class)))
+                    .willReturn(List.of());
+            given(regionRepository.findCitySuggestions(eq("안녕하세"), any(PageRequest.class)))
+                    .willReturn(List.of());
+            given(regionRepository.findDistrictSuggestions(eq("안녕하세"), any(PageRequest.class)))
+                    .willReturn(List.of());
+
+            // when
+            SearchSuggestionResponseDto result = searchService.getEngineerSuggestions("안녕하세", 5);
+
+            // then
+            assertThat(result.getItems()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("기술자명, 카테고리명, 지역명을 중복 없이 순서대로 제안한다")
+        void getEngineerSuggestions_mergeNameCategoryAndRegion() {
+            // given
+            given(engineerRepository.findEngineerNameSuggestions(eq("도배"), any(PageRequest.class)))
+                    .willReturn(List.of("도배장인001", "도배장인002"));
+            given(categoryRepository.findCategoryNameSuggestions(eq("도배"), any(PageRequest.class)))
+                    .willReturn(List.of("도배"));
+            given(regionRepository.findCitySuggestions(eq("도배"), any(PageRequest.class)))
+                    .willReturn(List.of());
+            given(regionRepository.findDistrictSuggestions(eq("도배"), any(PageRequest.class)))
+                    .willReturn(List.of());
+
+            // when
+            SearchSuggestionResponseDto result = searchService.getEngineerSuggestions("도배", 5);
+
+            // then
+            assertThat(result.getItems()).containsExactly("도배장인001", "도배장인002", "도배");
+        }
+
+        @Test
+        @DisplayName("지역 검색어는 시/구 후보를 제안한다")
+        void getEngineerSuggestions_includeRegion() {
+            // given
+            given(engineerRepository.findEngineerNameSuggestions(eq("강남"), any(PageRequest.class)))
+                    .willReturn(List.of());
+            given(categoryRepository.findCategoryNameSuggestions(eq("강남"), any(PageRequest.class)))
+                    .willReturn(List.of());
+            given(regionRepository.findCitySuggestions(eq("강남"), any(PageRequest.class)))
+                    .willReturn(List.of());
+            given(regionRepository.findDistrictSuggestions(eq("강남"), any(PageRequest.class)))
+                    .willReturn(List.of("강남구"));
+
+            // when
+            SearchSuggestionResponseDto result = searchService.getEngineerSuggestions("강남", 5);
+
+            // then
+            assertThat(result.getItems()).containsExactly("강남구");
         }
     }
 }

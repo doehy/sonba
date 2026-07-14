@@ -179,43 +179,6 @@ class EngineerRepositoryTest {
                     .containsExactly(firstEngineer.getEngineerId());
         }
 
-        @Test
-        @DisplayName("키워드는 DB 값의 공백을 무시하고 조회한다")
-        void searchEngineers_ignoreSpacesInKeyword() {
-            // given
-            Engineer firstEngineer = saveEngineer(
-                    900000000004L,
-                    "세번째유저",
-                    "01044445555",
-                    "에어컨기술자",
-                    "에어컨 설치 전문"
-            );
-            saveEngineer(
-                    900000000005L,
-                    "네번째유저",
-                    "01055556666",
-                    "주방기술자",
-                    "주방 시공 전문"
-            );
-
-            entityManager.flush();
-            entityManager.clear();
-
-            // when
-            Slice<Engineer> result = engineerRepository.searchEngineers(
-                    "에어컨설치",
-                    null,
-                    null,
-                    null,
-                    PageRequest.of(0, 10)
-            );
-
-            // then
-            assertThat(result.hasNext()).isFalse();
-            assertThat(result.getContent())
-                    .extracting(Engineer::getEngineerId)
-                    .containsExactly(firstEngineer.getEngineerId());
-        }
     }
 
     private Engineer saveEngineer(
