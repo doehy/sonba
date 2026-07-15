@@ -4,6 +4,7 @@ import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 
@@ -13,8 +14,14 @@ public interface EngineerCategoryRepository extends JpaRepository<EngineerCatego
 
     @EntityGraph(attributePaths = {"engineer", "category"})
     List<EngineerCategory> findByEngineer_EngineerIdIn(List<Long> engineerIds);
-}
 
+    @Query("""
+            select ec.category.categoryId
+            from EngineerCategory ec
+            where ec.engineer.engineerId = :engineerId
+            """)
+    List<Integer> findCategoryIdsByEngineerId(Long engineerId);
+}
 
 
 

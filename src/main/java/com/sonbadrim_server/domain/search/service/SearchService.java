@@ -94,12 +94,14 @@ public class SearchService {
             Long baseEngineerId,
             Pageable pageable
     ) {
-        if (!engineerRepository.existsById(baseEngineerId)) {
-            throw new CustomException(ErrorCode.ENGINEER_NOT_FOUND);
-        }
+        Integer baseRegionId = engineerRepository.findRegionIdByEngineerId(baseEngineerId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+        List<Integer> baseCategoryIds = engineerCategoryRepository.findCategoryIdsByEngineerId(baseEngineerId);
 
-        Slice<Engineer> engineerSlice = engineerRepository.findRecommendedEngineersByBaseEngineerId(
+        Slice<Engineer> engineerSlice = engineerRepository.findRecommendedEngineers(
                 baseEngineerId,
+                baseRegionId,
+                baseCategoryIds,
                 pageable
         );
 

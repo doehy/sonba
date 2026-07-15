@@ -21,6 +21,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -145,6 +146,45 @@ class SearchServiceTest {
                     eq(null),
                     eq(pageable)
             );
+        }
+    }
+
+    @Nested
+    @DisplayName("기술자 추천")
+    class RecommendEngineers {
+
+        @Test
+        @DisplayName("기준 기술자의 지역과 카테고리를 먼저 조회한 뒤 추천 목록을 조회한다")
+        void recommendEngineers_findBaseConditionFirst() {
+            // given
+            PageRequest pageable = PageRequest.of(0, 10);
+            given(engineerRepository.findRegionIdByEngineerId(1L))
+                    .willReturn(Optional.of(10));
+            given(engineerCategoryRepository.findCategoryIdsByEngineerId(1L))
+                    .willReturn(List.of(1, 2));
+            given(engineerRepository.findRecommendedEngineers(
+                    eq(1L),
+                    eq(10),
+                    eq(List.of(1, 2)),
+                    eq(pageable)
+            )).willReturn(new SliceImpl<>(List.of(), pageable, false));
+
+            // when
+            SearchEngineerListResponseDto result = searchService.recommendEngineers(1L, pageable);
+
+            // then
+            assertThat(result.getItems()).isEmpty();
+            assertThat(result.isHasNext()).isFalse();
+
+            verify(engineerRepository).findRegionIdByEngineerId(1L);
+            verify(engineerCategoryRepository).findCategoryIdsByEngineerId(1L);
+            verify(engineerRepository).findRecommendedEngineers(
+                    eq(1L),
+                    eq(10),
+                    eq(List.of(1, 2)),
+                    eq(pageable)
+            );
+            verify(engineerRepository, never()).existsById(1L);
         }
     }
 

@@ -181,6 +181,77 @@ class EngineerRepositoryTest {
 
     }
 
+    @Nested
+    @DisplayName("기술자 추천")
+    class RecommendEngineers {
+
+        @Test
+        @DisplayName("기준 기술자와 겹치는 카테고리가 많은 순서로 추천한다")
+        void findRecommendedEngineers_orderByMatchedCategoryCount() {
+            // given
+            Engineer baseEngineer = saveEngineer(
+                    900000000004L,
+                    "세번째유저",
+                    "01044445555",
+                    "기준기술자",
+                    "기준 시공"
+            );
+            Engineer exactMatchedEngineer = saveEngineer(
+                    900000000005L,
+                    "네번째유저",
+                    "01055556666",
+                    "주방타일기술자",
+                    "주방 타일 시공"
+            );
+            Engineer partlyMatchedEngineer = saveEngineer(
+                    900000000006L,
+                    "다섯번째유저",
+                    "01066667777",
+                    "주방기술자",
+                    "주방 시공"
+            );
+            Engineer notMatchedEngineer = saveEngineer(
+                    900000000007L,
+                    "여섯번째유저",
+                    "01077778888",
+                    "기타기술자",
+                    "기타 시공"
+            );
+            engineerCategoryRepository.saveAll(List.of(
+                    EngineerCategory.create(baseEngineer, kitchen),
+                    EngineerCategory.create(baseEngineer, tile),
+                    EngineerCategory.create(exactMatchedEngineer, kitchen),
+                    EngineerCategory.create(exactMatchedEngineer, tile),
+                    EngineerCategory.create(partlyMatchedEngineer, kitchen)
+            ));
+
+            entityManager.flush();
+            entityManager.clear();
+
+            Integer baseRegionId = engineerRepository.findRegionIdByEngineerId(baseEngineer.getEngineerId())
+                    .orElseThrow();
+            List<Integer> baseCategoryIds = engineerCategoryRepository.findCategoryIdsByEngineerId(baseEngineer.getEngineerId());
+
+            // when
+            Slice<Engineer> result = engineerRepository.findRecommendedEngineers(
+                    baseEngineer.getEngineerId(),
+                    baseRegionId,
+                    baseCategoryIds,
+                    PageRequest.of(0, 10)
+            );
+
+            // then
+            assertThat(result.hasNext()).isFalse();
+            assertThat(result.getContent())
+                    .extracting(Engineer::getEngineerId)
+                    .containsSubsequence(
+                            exactMatchedEngineer.getEngineerId(),
+                            partlyMatchedEngineer.getEngineerId(),
+                            notMatchedEngineer.getEngineerId()
+                    );
+        }
+    }
+
     private Engineer saveEngineer(
             Long kakaoId,
             String nickname,
