@@ -228,14 +228,15 @@ class EngineerRepositoryTest {
             entityManager.flush();
             entityManager.clear();
 
-            Integer baseRegionId = engineerRepository.findRegionIdByEngineerId(baseEngineer.getEngineerId())
+            EngineerRecommendationBaseInfo baseInfo = engineerRepository.findRecommendationBaseInfoByEngineerId(baseEngineer.getEngineerId())
                     .orElseThrow();
             List<Integer> baseCategoryIds = engineerCategoryRepository.findCategoryIdsByEngineerId(baseEngineer.getEngineerId());
 
             // when
             Slice<Engineer> result = engineerRepository.findRecommendedEngineers(
                     baseEngineer.getEngineerId(),
-                    baseRegionId,
+                    baseInfo.getRegionId(),
+                    baseInfo.getCity(),
                     baseCategoryIds,
                     PageRequest.of(0, 10)
             );
@@ -244,11 +245,13 @@ class EngineerRepositoryTest {
             assertThat(result.hasNext()).isFalse();
             assertThat(result.getContent())
                     .extracting(Engineer::getEngineerId)
-                    .containsSubsequence(
+                    .containsExactly(
                             exactMatchedEngineer.getEngineerId(),
-                            partlyMatchedEngineer.getEngineerId(),
-                            notMatchedEngineer.getEngineerId()
+                            partlyMatchedEngineer.getEngineerId()
                     );
+            assertThat(result.getContent())
+                    .extracting(Engineer::getEngineerId)
+                    .doesNotContain(notMatchedEngineer.getEngineerId());
         }
     }
 

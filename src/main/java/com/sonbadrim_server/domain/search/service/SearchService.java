@@ -5,6 +5,7 @@ import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponse
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
+import com.sonbadrim_server.domain.engineer.repository.EngineerRecommendationBaseInfo;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
 import com.sonbadrim_server.domain.region.repository.RegionRepository;
 import com.sonbadrim_server.domain.search.dto.response.SearchEngineerListResponseDto;
@@ -94,13 +95,14 @@ public class SearchService {
             Long baseEngineerId,
             Pageable pageable
     ) {
-        Integer baseRegionId = engineerRepository.findRegionIdByEngineerId(baseEngineerId)
+        EngineerRecommendationBaseInfo baseInfo = engineerRepository.findRecommendationBaseInfoByEngineerId(baseEngineerId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
         List<Integer> baseCategoryIds = engineerCategoryRepository.findCategoryIdsByEngineerId(baseEngineerId);
 
         Slice<Engineer> engineerSlice = engineerRepository.findRecommendedEngineers(
                 baseEngineerId,
-                baseRegionId,
+                baseInfo.getRegionId(),
+                baseInfo.getCity(),
                 baseCategoryIds,
                 pageable
         );

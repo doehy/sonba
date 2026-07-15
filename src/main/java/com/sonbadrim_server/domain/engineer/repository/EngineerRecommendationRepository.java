@@ -11,6 +11,7 @@ public interface EngineerRecommendationRepository {
     Slice<Engineer> findRecommendedEngineers(
             Long baseEngineerId,
             Integer baseRegionId,
+            String baseCity,
             List<Integer> baseCategoryIds,
             Pageable pageable
     );

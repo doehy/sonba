@@ -31,11 +31,12 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long>, Engin
     Optional<Engineer> findDetailByEngineerId(Long engineerId);
 
     @Query("""
-            select e.region.regionId
+            select e.region.regionId as regionId,
+                   e.region.city as city
             from Engineer e
             where e.engineerId = :engineerId
             """)
-    Optional<Integer> findRegionIdByEngineerId(Long engineerId);
+    Optional<EngineerRecommendationBaseInfo> findRecommendationBaseInfoByEngineerId(Long engineerId);
 
     @Query("""
             select distinct e.engineerName

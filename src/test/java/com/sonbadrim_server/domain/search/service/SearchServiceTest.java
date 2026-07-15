@@ -2,6 +2,7 @@ package com.sonbadrim_server.domain.search.service;
 
 import com.sonbadrim_server.domain.category.repository.CategoryRepository;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
+import com.sonbadrim_server.domain.engineer.repository.EngineerRecommendationBaseInfo;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
 import com.sonbadrim_server.domain.region.repository.RegionRepository;
 import com.sonbadrim_server.domain.search.dto.response.SearchEngineerListResponseDto;
@@ -158,13 +159,24 @@ class SearchServiceTest {
         void recommendEngineers_findBaseConditionFirst() {
             // given
             PageRequest pageable = PageRequest.of(0, 10);
-            given(engineerRepository.findRegionIdByEngineerId(1L))
-                    .willReturn(Optional.of(10));
+            given(engineerRepository.findRecommendationBaseInfoByEngineerId(1L))
+                    .willReturn(Optional.of(new EngineerRecommendationBaseInfo() {
+                        @Override
+                        public Integer getRegionId() {
+                            return 10;
+                        }
+
+                        @Override
+                        public String getCity() {
+                            return "서울특별시";
+                        }
+                    }));
             given(engineerCategoryRepository.findCategoryIdsByEngineerId(1L))
                     .willReturn(List.of(1, 2));
             given(engineerRepository.findRecommendedEngineers(
                     eq(1L),
                     eq(10),
+                    eq("서울특별시"),
                     eq(List.of(1, 2)),
                     eq(pageable)
             )).willReturn(new SliceImpl<>(List.of(), pageable, false));
@@ -176,11 +188,12 @@ class SearchServiceTest {
             assertThat(result.getItems()).isEmpty();
             assertThat(result.isHasNext()).isFalse();
 
-            verify(engineerRepository).findRegionIdByEngineerId(1L);
+            verify(engineerRepository).findRecommendationBaseInfoByEngineerId(1L);
             verify(engineerCategoryRepository).findCategoryIdsByEngineerId(1L);
             verify(engineerRepository).findRecommendedEngineers(
                     eq(1L),
                     eq(10),
+                    eq("서울특별시"),
                     eq(List.of(1, 2)),
                     eq(pageable)
             );
