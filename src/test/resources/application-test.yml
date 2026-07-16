@@ -33,3 +33,6 @@ app:
   base-url: http://localhost:8080
   frontend-url: http://localhost:5173
   cookie-secure: false
+  cookie-same-site: Lax
+  auth-rate-limit:
+    enabled: false

@@ -4,6 +4,7 @@ import com.sonbadrim_server.domain.user.entity.User;
 import com.sonbadrim_server.domain.user.entity.UserRole;
 import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
+import com.sonbadrim_server.domain.user.service.AuthRateLimiter;
 import com.sonbadrim_server.domain.user.service.KakaoService;
 import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.exception.CustomException;
@@ -27,6 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -44,7 +46,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "kakao.redirect.uri=http://localhost:8080/auth/kakao/callback",
         "app.frontend-url=http://localhost:5173",
         "jwt.refresh-expiration=1209600000",
-        "app.cookie-secure=false"
+        "app.cookie-secure=false",
+        "app.cookie-same-site=Lax"
 })
 class AuthControllerTest {
 
@@ -53,6 +56,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private UserService userService;
+
+    @MockitoBean
+    private AuthRateLimiter authRateLimiter;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -159,6 +165,23 @@ class AuthControllerTest {
                     .andExpect(jsonPath("$.success").value(false))
                     .andExpect(jsonPath("$.data.code").value("KAKAO_LOGIN_FAILED"));
         }
+
+        @Test
+        @DisplayName("카카오 콜백 요청이 너무 많으면 로그인을 시도하지 않고 거부한다")
+        void kakaoLogin_rateLimited() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.TOO_MANY_REQUESTS))
+                    .given(authRateLimiter).check(any(), any());
+
+            // when & then
+            mockMvc.perform(get("/auth/kakao/callback")
+                            .param("code", "code"))
+                    .andExpect(status().isTooManyRequests())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("TOO_MANY_REQUESTS"));
+
+            verify(kakaoService, never()).getAccessToken(any());
+        }
     }
 
     @Nested
@@ -241,6 +264,24 @@ class AuthControllerTest {
                     .andExpect(jsonPath("$.data.code").value("UNAUTHORIZED"));
 
             verify(userService).reissueTokenPair(null);
+        }
+
+        @Test
+        @DisplayName("토큰 재발급 요청이 너무 많으면 재발급을 시도하지 않고 거부한다")
+        void refresh_rateLimited() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.TOO_MANY_REQUESTS))
+                    .given(authRateLimiter).check(any(), any());
+
+            // when & then
+            mockMvc.perform(post("/auth/refresh")
+                            .cookie(new Cookie("refreshToken", "old-refresh-token"))
+                            .header("Origin", "http://localhost:5173"))
+                    .andExpect(status().isTooManyRequests())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("TOO_MANY_REQUESTS"));
+
+            verify(userService, never()).reissueTokenPair(any());
         }
     }
 

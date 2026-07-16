@@ -4,6 +4,7 @@ package com.sonbadrim_server.domain.user.controller;
 import com.sonbadrim_server.domain.user.entity.User;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
 import com.sonbadrim_server.domain.user.dto.response.AuthTokenResponse;
+import com.sonbadrim_server.domain.user.service.AuthRateLimiter;
 import com.sonbadrim_server.domain.user.service.KakaoService;
 import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.common.CommonResponse;
@@ -37,6 +38,7 @@ public class AuthController {
 
     private final KakaoService kakaoService;
     private final UserService userService;
+    private final AuthRateLimiter authRateLimiter;
 
     @Value("${kakao.client.id}")
     private String clientId;
@@ -52,6 +54,9 @@ public class AuthController {
 
     @Value("${app.cookie-secure:false}")
     private boolean cookieSecure;
+
+    @Value("${app.cookie-same-site:Lax}")
+    private String cookieSameSite;
 
     /**
      * 카카오 로그인 시작
@@ -74,7 +79,12 @@ public class AuthController {
             description = "Access/Refresh 토큰을 발급하고, 회원가입 필요 여부(requiresSignup)를 반환합니다."
     )
     @GetMapping("/kakao/callback")
-    public void kakaoLogin(@RequestParam String code, HttpServletResponse response) throws IOException {
+    public void kakaoLogin(
+            @RequestParam String code,
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) throws IOException {
+        authRateLimiter.check(request, "kakao-callback");
         try {
             // 1. 인증 코드로 카카오 액세스 토큰 받기
             String kakaoAccessToken = kakaoService.getAccessToken(code);
@@ -119,6 +129,7 @@ public class AuthController {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
+        authRateLimiter.check(request, "refresh");
         validateRefreshOrigin(request);
         Map<String, String> tokens = userService.reissueTokenPair(refreshToken);
         addRefreshTokenCookie(response, tokens.get("refreshToken"));
@@ -154,7 +165,7 @@ public class AuthController {
         StringBuilder cookie = new StringBuilder();
         cookie.append("refreshToken=").append(refreshToken).append("; ");
         cookie.append("Max-Age=").append(Duration.ofMillis(refreshTokenExpiration).toSeconds()).append("; ");
-        cookie.append("Path=/; HttpOnly; SameSite=Lax;");
+        cookie.append("Path=/; HttpOnly; SameSite=").append(cookieSameSite).append(";");
         if (cookieSecure) {
             cookie.append(" Secure;");
         }
@@ -162,7 +173,9 @@ public class AuthController {
     }
 
     private void clearRefreshTokenCookie(HttpServletResponse response) {
-        StringBuilder cookie = new StringBuilder("refreshToken=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax;");
+        StringBuilder cookie = new StringBuilder("refreshToken=; Max-Age=0; Path=/; HttpOnly; SameSite=")
+                .append(cookieSameSite)
+                .append(";");
         if (cookieSecure) {
             cookie.append(" Secure;");
         }

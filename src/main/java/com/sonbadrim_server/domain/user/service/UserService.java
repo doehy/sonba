@@ -215,10 +215,23 @@ public class UserService {
 
         String refreshTokenHash = hashRefreshToken(refreshToken);
         RefreshToken storedToken = refreshTokenRepository.findValidToken(userId, refreshTokenHash, LocalDateTime.now())
-                .orElseThrow(() -> new CustomException(ErrorCode.UNAUTHORIZED));
+                .orElseThrow(() -> {
+                    logRefreshTokenReuseIfRevoked(userId, refreshTokenHash);
+                    return new CustomException(ErrorCode.UNAUTHORIZED);
+                });
         storedToken.revoke();
 
         return generateTokenPair(user);
+    }
+
+    private void logRefreshTokenReuseIfRevoked(Long userId, String refreshTokenHash) {
+        refreshTokenRepository.findByUserIdAndTokenHash(userId, refreshTokenHash)
+                .filter(RefreshToken::isRevoked)
+                .ifPresent(token -> log.warn(
+                        "Revoked refresh token reuse detected. userId={}, refreshTokenId={}",
+                        userId,
+                        token.getRefreshTokenId()
+                ));
     }
 
     /**

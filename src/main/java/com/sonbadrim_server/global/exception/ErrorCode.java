@@ -15,6 +15,7 @@ public enum ErrorCode {
     EXTERNAL_API_ERROR(503, "GLOBAL_503_1", "외부 API 서버 호출 중 오류가 발생했습니다."),
     UNAUTHORIZED(401, "GLOBAL_401_1", "인증되지 않은 사용자입니다."),
     FORBIDDEN(403, "GLOBAL_403_1", "허용되지 않은 요청입니다."),
+    TOO_MANY_REQUESTS(429, "GLOBAL_429_1", "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),
 
     // NORMALIZE
     INVALID_PHONE_NUMBER(400, "NORMALIZE_400_1", "유효하지 않은 전화번호 형식입니다."),
