@@ -18,6 +18,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.junit.jupiter.api.Nested;
@@ -379,10 +380,10 @@ class EngineerControllerTest {
                     .introduction("주방 시공 전문가입니다.")
                     .build();
             given(engineerService.getEngineerList(any(Pageable.class)))
-                    .willReturn(new PageImpl<>(
+                    .willReturn(new SliceImpl<>(
                             List.of(engineer),
                             PageRequest.of(0, 20),
-                            1
+                            false
                     ));
 
             // when & then
@@ -394,12 +395,14 @@ class EngineerControllerTest {
                     .andExpect(jsonPath("$.data.content[0].profileImage").value("profile.jpg"))
                     .andExpect(jsonPath("$.data.content[0].categories[0]").value("주방"))
                     .andExpect(jsonPath("$.data.content[0].introduction").value("주방 시공 전문가입니다."))
-                    .andExpect(jsonPath("$.data.totalElements").value(1));
+                    .andExpect(jsonPath("$.data.last").value(true));
 
             Pageable pageable = captureRequestedPageable();
             assertThat(pageable.getPageNumber()).isZero();
             assertThat(pageable.getPageSize()).isEqualTo(20);
             assertThat(pageable.getSort().getOrderFor("createdAt").getDirection())
+                    .isEqualTo(Sort.Direction.DESC);
+            assertThat(pageable.getSort().getOrderFor("engineerId").getDirection())
                     .isEqualTo(Sort.Direction.DESC);
         }
 
@@ -408,10 +411,10 @@ class EngineerControllerTest {
         void getEngineerList_customPageable() throws Exception {
             // given
             given(engineerService.getEngineerList(any(Pageable.class)))
-                    .willReturn(new PageImpl<>(
+                    .willReturn(new SliceImpl<>(
                             List.of(),
                             PageRequest.of(2, 10),
-                            0
+                            false
                     ));
 
             // when & then
@@ -426,6 +429,8 @@ class EngineerControllerTest {
             assertThat(pageable.getPageNumber()).isEqualTo(2);
             assertThat(pageable.getPageSize()).isEqualTo(10);
             assertThat(pageable.getSort().getOrderFor("createdAt").getDirection())
+                    .isEqualTo(Sort.Direction.DESC);
+            assertThat(pageable.getSort().getOrderFor("engineerId").getDirection())
                     .isEqualTo(Sort.Direction.DESC);
         }
 

@@ -1,9 +1,8 @@
 package com.sonbadrim_server.domain.engineer.repository;
 
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -16,8 +15,11 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long>, Engin
 
     boolean existsByPhone(String phone);
 
-    @EntityGraph(attributePaths = {"region"})
-    Page<Engineer> findAll(Pageable pageable);
+    @Query("""
+            select e
+            from Engineer e
+            """)
+    Slice<Engineer> findEngineerList(Pageable pageable);
 
     @Query("""
     select distinct e

@@ -14,10 +14,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -58,8 +55,8 @@ public class EngineerController {
             @Max(value = 100, message = "페이지 크기는 100 이하여야 합니다.")
             int size
     ) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<EngineerSummaryResponseDto> engineerList = engineerService.getEngineerList(pageable);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("engineerId")));
+        Slice<EngineerSummaryResponseDto> engineerList = engineerService.getEngineerList(pageable);
 
         return ResponseEntity.ok(CommonResponse.success(engineerList));
     }

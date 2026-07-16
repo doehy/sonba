@@ -26,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -150,16 +151,16 @@ public class EngineerService {
      * 기술자들의 목록을 조회한다.
      * @return 기술자 20명 summaryDto
      */
-    public Page<EngineerSummaryResponseDto> getEngineerList(Pageable pageable) {
-        Page<Engineer> engineerPage = engineerRepository.findAll(pageable);
+    public Slice<EngineerSummaryResponseDto> getEngineerList(Pageable pageable) {
+        Slice<Engineer> engineerSlice = engineerRepository.findEngineerList(pageable);
 
-        List<Long> engineerIds = engineerPage.getContent().stream()
+        List<Long> engineerIds = engineerSlice.getContent().stream()
                 .map(Engineer::getEngineerId)
                 .toList();
 
         Map<Long, List<String>> categoryMap = getCategoryMap(engineerIds);
 
-        return engineerPage.map(engineer -> EngineerSummaryResponseDto.builder()
+        return engineerSlice.map(engineer -> EngineerSummaryResponseDto.builder()
                 .engineerId(engineer.getEngineerId())
                 .engineerName(engineer.getEngineerName())
                 .profileImage(engineer.getProfileImage())

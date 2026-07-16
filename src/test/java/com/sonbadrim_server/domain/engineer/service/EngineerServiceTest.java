@@ -37,6 +37,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
@@ -721,11 +722,10 @@ class EngineerServiceTest {
             PageRequest pageable = PageRequest.of(0, 10);
 
             // when
-            Page<EngineerSummaryResponseDto> result =
+            Slice<EngineerSummaryResponseDto> result =
                     engineerService.getEngineerList(pageable);
 
             // then
-            assertThat(result.getTotalElements()).isEqualTo(2);
             assertThat(result.getNumber()).isZero();
             assertThat(result.getSize()).isEqualTo(10);
             assertThat(result.getContent()).hasSize(2);
@@ -772,7 +772,7 @@ class EngineerServiceTest {
             engineerRepository.save(engineer);
 
             // when
-            Page<EngineerSummaryResponseDto> result =
+            Slice<EngineerSummaryResponseDto> result =
                     engineerService.getEngineerList(PageRequest.of(0, 10));
 
             // then
@@ -785,12 +785,12 @@ class EngineerServiceTest {
         @DisplayName("등록된 기술자가 없으면 빈 목록을 조회한다")
         void getEngineerList_empty() {
             // when
-            Page<EngineerSummaryResponseDto> result =
+            Slice<EngineerSummaryResponseDto> result =
                     engineerService.getEngineerList(PageRequest.of(0, 10));
 
             // then
             assertThat(result.getContent()).isEmpty();
-            assertThat(result.getTotalElements()).isZero();
+            assertThat(result.hasNext()).isFalse();
         }
     }
 

@@ -3,17 +3,8 @@ package com.sonbadrim_server.domain.engineer.entity;
 import com.sonbadrim_server.domain.portfolio.entity.Portfolio;
 import com.sonbadrim_server.domain.region.entity.Region;
 import com.sonbadrim_server.domain.user.entity.User;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+
 import java.util.ArrayList;
 import java.util.List;
 import com.sonbadrim_server.global.BaseTimeEntity;
@@ -23,7 +14,13 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "engineer")
+@Table(name = "engineer",
+        indexes = {
+                @Index(
+                        name = "idx_engineer_created_at_engineer_id",
+                        columnList = "created_at DESC, engineer_id DESC"
+                )
+        })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Engineer extends BaseTimeEntity {
 
