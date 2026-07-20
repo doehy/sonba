@@ -41,6 +41,7 @@ import org.springframework.data.domain.Slice;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,9 +54,19 @@ import static org.mockito.BDDMockito.given;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@TestPropertySource(properties = "cloudflare.r2.public-domain=https://image.test")
 @Transactional
 @Sql("/sql/engineer-test-data.sql")
 class EngineerServiceTest {
+
+    private static final String PROFILE_IMAGE = imageUrl("profile.jpg");
+    private static final String OLD_PROFILE_IMAGE = imageUrl("old-profile.jpg");
+    private static final String NEW_PROFILE_IMAGE = imageUrl("new-profile.jpg");
+    private static final String PORTFOLIO_IMAGE_1 = imageUrl("portfolio1.jpg");
+    private static final String PORTFOLIO_IMAGE_2 = imageUrl("portfolio2.jpg");
+    private static final String OLD_PORTFOLIO_IMAGE = imageUrl("old-portfolio.jpg");
+    private static final String NEW_PORTFOLIO_IMAGE = imageUrl("new-portfolio.jpg");
+    private static final String SECOND_PORTFOLIO_IMAGE = imageUrl("second-portfolio.jpg");
 
     @Autowired
     private EngineerService engineerService;
@@ -113,7 +124,7 @@ class EngineerServiceTest {
             // given
             EngineerRequestDto request = createRequest(
                     List.of("주방", "타일"),
-                    List.of("portfolio1.jpg", "portfolio2.jpg"),
+                    List.of(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2),
                     "010-1234-5678"
             );
 
@@ -130,7 +141,7 @@ class EngineerServiceTest {
 
             assertThat(savedEngineer.getUser().getUserId()).isEqualTo(currentUser.getUserId());
             assertThat(savedEngineer.getRegion().getRegionId()).isEqualTo(region.getRegionId());
-            assertThat(savedEngineer.getProfileImage()).isEqualTo("profile.jpg");
+            assertThat(savedEngineer.getProfileImage()).isEqualTo(PROFILE_IMAGE);
             assertThat(savedEngineer.getIntroduction()).isEqualTo("테스트 소개");
             assertThat(savedEngineer.getStoreName()).isEqualTo("테스트 상호");
             assertThat(savedEngineer.getStoreAddress()).isEqualTo("서울시 테스트구");
@@ -144,7 +155,7 @@ class EngineerServiceTest {
                     .containsExactlyInAnyOrder("주방", "타일");
             assertThat(savedPortfolios)
                     .extracting(Portfolio::getPortfolioImage)
-                    .containsExactly("portfolio1.jpg", "portfolio2.jpg");
+                    .containsExactly(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2);
         }
 
         @Test
@@ -233,7 +244,7 @@ class EngineerServiceTest {
             // given
             EngineerRequestDto request = createRequest(
                     List.of("주방", "없는분야"),
-                    List.of("portfolio1.jpg"),
+                    List.of(PORTFOLIO_IMAGE_1),
                     "010-1234-5678"
             );
 
@@ -254,7 +265,7 @@ class EngineerServiceTest {
             // given
             EngineerRequestDto request = createRequest(
                     List.of(" 주방 ", "주방", "타일"),
-                    List.of("portfolio1.jpg"),
+                    List.of(PORTFOLIO_IMAGE_1),
                     "010-1234-5678"
             );
 
@@ -275,7 +286,7 @@ class EngineerServiceTest {
             // given
             EngineerRequestDto request = createRequest(
                     List.of("주방", "타일"),
-                    List.of("portfolio1.jpg"),
+                    List.of(PORTFOLIO_IMAGE_1),
                     "1234"
             );
 
@@ -330,12 +341,50 @@ class EngineerServiceTest {
         }
 
         @Test
+        @DisplayName("외부 URL은 포트폴리오 이미지로 등록할 수 없다")
+        void registerEngineer_rejectExternalPortfolioImageUrl() {
+            // given
+            EngineerRequestDto request = createRequestBuilder()
+                    .portfolioImages(List.of("https://evil.example.com/portfolio.png"))
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.registerEngineer(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+
+            assertThat(engineerRepository.count()).isZero();
+            assertThat(engineerCategoryRepository.count()).isZero();
+            assertThat(portfolioRepository.count()).isZero();
+        }
+
+        @Test
+        @DisplayName("외부 URL은 프로필 이미지로 등록할 수 없다")
+        void registerEngineer_rejectExternalProfileImageUrl() {
+            // given
+            EngineerRequestDto request = createRequestBuilder()
+                    .profileImage("https://evil.example.com/profile.png")
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.registerEngineer(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_PROFILE_IMAGE);
+
+            assertThat(engineerRepository.count()).isZero();
+            assertThat(engineerCategoryRepository.count()).isZero();
+            assertThat(portfolioRepository.count()).isZero();
+        }
+
+        @Test
         @DisplayName("하이픈이 포함된 전화번호에서 숫자만 빼서 저장한다")
         void registerEngineer_normalizesPhone() {
             // given
             EngineerRequestDto request = createRequest(
                     List.of("주방", "타일"),
-                    List.of("portfolio1.jpg"),
+                    List.of(PORTFOLIO_IMAGE_1),
                     "010-1234-5678"
             );
 
@@ -354,7 +403,7 @@ class EngineerServiceTest {
             // given
             EngineerRequestDto request = createRequest(
                     List.of("주방", "타일"),
-                    List.of(" portfolio1.jpg ", " ", "portfolio1.jpg", "portfolio2.jpg"),
+                    List.of(" " + PORTFOLIO_IMAGE_1 + " ", " ", PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2),
                     "010-1234-5678"
             );
 
@@ -366,7 +415,7 @@ class EngineerServiceTest {
                     portfolioRepository.findByEngineer_EngineerId(response.getEngineerId());
             assertThat(savedPortfolios)
                     .extracting(Portfolio::getPortfolioImage)
-                    .containsExactly("portfolio1.jpg", "portfolio2.jpg");
+                    .containsExactly(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2);
         }
 
         @Test
@@ -419,12 +468,12 @@ class EngineerServiceTest {
             );
             Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
             engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
-            portfolioRepository.save(Portfolio.create(engineer, "old-portfolio.jpg"));
+            portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
 
             EngineerRequestDto request = createRequestBuilder()
                     .categories(List.of("타일"))
-                    .portfolioImages(List.of(" new-portfolio.jpg "))
-                    .profileImage(" new-profile.jpg ")
+                    .portfolioImages(List.of( NEW_PORTFOLIO_IMAGE ))
+                    .profileImage( NEW_PROFILE_IMAGE )
                     .introduction(" 새로운 소개 ")
                     .storeName(" 새로운 상호 ")
                     .storeAddress(" 새로운 주소 ")
@@ -449,7 +498,7 @@ class EngineerServiceTest {
             assertThat(updatedEngineer.getHeadline()).isEqualTo("새로운 짧은 소개");
             assertThat(updatedEngineer.getPhone()).isEqualTo("01022223333");
             assertThat(updatedEngineer.isPhonePublic()).isFalse();
-            assertThat(updatedEngineer.getProfileImage()).isEqualTo("new-profile.jpg");
+            assertThat(updatedEngineer.getProfileImage()).isEqualTo(NEW_PROFILE_IMAGE);
             assertThat(updatedEngineer.getIntroduction()).isEqualTo("새로운 소개");
             assertThat(updatedEngineer.getStoreName()).isEqualTo("새로운 상호");
             assertThat(updatedEngineer.getStoreAddress()).isEqualTo("새로운 주소");
@@ -458,7 +507,7 @@ class EngineerServiceTest {
                     .containsExactly("타일");
             assertThat(updatedPortfolios)
                     .extracting(Portfolio::getPortfolioImage)
-                    .containsExactly("new-portfolio.jpg");
+                    .containsExactly(NEW_PORTFOLIO_IMAGE);
         }
 
         @Test
@@ -548,15 +597,15 @@ class EngineerServiceTest {
             );
             Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
             engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
-            portfolioRepository.save(Portfolio.create(engineer, "old-portfolio.jpg"));
+            portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
 
             EngineerRequestDto request = createRequestBuilder()
                     .categories(List.of(" 주방 ", " ", "주방", "타일"))
                     .portfolioImages(List.of(
-                            " new-portfolio.jpg ",
+                            " " + NEW_PORTFOLIO_IMAGE + " ",
                             " ",
-                            "new-portfolio.jpg",
-                            "second-portfolio.jpg"
+                            NEW_PORTFOLIO_IMAGE,
+                            SECOND_PORTFOLIO_IMAGE
                     ))
                     .phone("010-1111-2222")
                     .build();
@@ -575,7 +624,7 @@ class EngineerServiceTest {
                     .containsExactlyInAnyOrder("주방", "타일");
             assertThat(updatedPortfolios)
                     .extracting(Portfolio::getPortfolioImage)
-                    .containsExactly("new-portfolio.jpg", "second-portfolio.jpg");
+                    .containsExactly(NEW_PORTFOLIO_IMAGE, SECOND_PORTFOLIO_IMAGE);
         }
 
         @ParameterizedTest
@@ -618,7 +667,7 @@ class EngineerServiceTest {
                     "기존기술자",
                     "기존 소개"
             );
-            portfolioRepository.save(Portfolio.create(engineer, "old-portfolio.jpg"));
+            portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
             EngineerRequestDto request = createRequestBuilder()
                     .portfolioImages(portfolioImages)
                     .phone("010-1111-2222")
@@ -632,7 +681,34 @@ class EngineerServiceTest {
 
             assertThat(portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId()))
                     .extracting(Portfolio::getPortfolioImage)
-                    .containsExactly("old-portfolio.jpg");
+                    .containsExactly(OLD_PORTFOLIO_IMAGE);
+        }
+
+        @Test
+        @DisplayName("외부 URL은 포트폴리오 이미지로 수정할 수 없다")
+        void updateEngineer_rejectExternalPortfolioImageUrl() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
+            EngineerRequestDto request = createRequestBuilder()
+                    .portfolioImages(List.of("https://evil.example.com/portfolio.png"))
+                    .phone("010-1111-2222")
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.updateEngineer(engineer.getEngineerId(), request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+
+            assertThat(portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId()))
+                    .extracting(Portfolio::getPortfolioImage)
+                    .containsExactly(OLD_PORTFOLIO_IMAGE);
         }
 
         @Test
@@ -735,7 +811,7 @@ class EngineerServiceTest {
                     .singleElement()
                     .satisfies(summary -> {
                         assertThat(summary.getEngineerName()).isEqualTo("첫번째기술자");
-                        assertThat(summary.getProfileImage()).isEqualTo("old-profile.jpg");
+                        assertThat(summary.getProfileImage()).isEqualTo(OLD_PROFILE_IMAGE);
                         assertThat(summary.getIntroduction()).isEqualTo("기존 소개");
                         assertThat(summary.getCategories())
                                 .containsExactlyInAnyOrder("주방", "타일");
@@ -746,7 +822,7 @@ class EngineerServiceTest {
                     .singleElement()
                     .satisfies(summary -> {
                         assertThat(summary.getEngineerName()).isEqualTo("두번째기술자");
-                        assertThat(summary.getProfileImage()).isEqualTo("old-profile.jpg");
+                        assertThat(summary.getProfileImage()).isEqualTo(OLD_PROFILE_IMAGE);
                         assertThat(summary.getIntroduction()).isEqualTo("기존 소개");
                         assertThat(summary.getCategories()).containsExactly("타일");
                     });
@@ -760,7 +836,7 @@ class EngineerServiceTest {
             Engineer engineer = Engineer.create(
                     currentUser,
                     region,
-                    "profile.jpg",
+                    PROFILE_IMAGE,
                     longIntroduction,
                     "테스트 상호",
                     "테스트 주소",
@@ -815,8 +891,8 @@ class EngineerServiceTest {
                     EngineerCategory.create(engineer, tile)
             ));
             portfolioRepository.saveAll(List.of(
-                    Portfolio.create(engineer, "portfolio1.jpg"),
-                    Portfolio.create(engineer, "portfolio2.jpg")
+                    Portfolio.create(engineer, PORTFOLIO_IMAGE_1),
+                    Portfolio.create(engineer, PORTFOLIO_IMAGE_2)
             ));
             entityManager.flush();
             entityManager.clear();
@@ -831,7 +907,7 @@ class EngineerServiceTest {
             assertThat(result.getUserId()).isEqualTo(currentUser.getUserId());
             assertThat(result.getEngineerName()).isEqualTo("상세기술자");
             assertThat(result.getHeadline()).isEqualTo("상세 소개");
-            assertThat(result.getProfileImage()).isEqualTo("old-profile.jpg");
+            assertThat(result.getProfileImage()).isEqualTo(OLD_PROFILE_IMAGE);
             assertThat(result.getRegionName()).isEqualTo("서울특별시 강남구");
             assertThat(result.getCategories()).containsExactlyInAnyOrder("주방", "타일");
             assertThat(result.getIntroduction()).isEqualTo("기존 소개");
@@ -841,7 +917,7 @@ class EngineerServiceTest {
             assertThat(result.isPhonePublic()).isTrue();
             assertThat(result.isInterested()).isFalse();
             assertThat(result.getPortfolioImages())
-                    .containsExactly("portfolio1.jpg", "portfolio2.jpg");
+                    .containsExactly(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2);
         }
 
         @Test
@@ -898,7 +974,7 @@ class EngineerServiceTest {
                     EngineerCategory.create(engineer, kitchen)
             );
             portfolioRepository.save(
-                    Portfolio.create(engineer, "portfolio.jpg")
+                    Portfolio.create(engineer, imageUrl("portfolio.jpg"))
             );
             User interestedUser = saveUser(900000000002L, "관심사용자");
             interestedEngineerRepository.save(
@@ -1127,7 +1203,7 @@ class EngineerServiceTest {
                     );
             assertThat(result.getContent())
                     .extracting(InterestedEngineerItemResponseDto::getProfileImage)
-                    .containsOnly("old-profile.jpg");
+                    .containsOnly(OLD_PROFILE_IMAGE);
         }
     }
 
@@ -1253,7 +1329,7 @@ class EngineerServiceTest {
     private EngineerRequestDto createValidRequest() {
         return createRequest(
                 List.of("주방", "타일"),
-                List.of("portfolio1.jpg", "portfolio2.jpg"),
+                List.of(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2),
                 "010-1234-5678"
         );
     }
@@ -1273,10 +1349,10 @@ class EngineerServiceTest {
     private EngineerRequestDto.EngineerRequestDtoBuilder createRequestBuilder() {
         return EngineerRequestDto.builder()
                 .categories(List.of("주방", "타일"))
-                .portfolioImages(List.of("portfolio1.jpg", "portfolio2.jpg"))
+                .portfolioImages(List.of(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2))
                 .introduction(" 테스트 소개 ")
                 .regionId(region.getRegionId())
-                .profileImage(" profile.jpg ")
+                .profileImage(" " + PROFILE_IMAGE + " ")
                 .storeName(" 테스트 상호 ")
                 .storeAddress(" 서울시 테스트구 ")
                 .phone("010-1234-5678")
@@ -1305,7 +1381,7 @@ class EngineerServiceTest {
         Engineer engineer = Engineer.create(
                 user,
                 region,
-                "old-profile.jpg",
+                OLD_PROFILE_IMAGE,
                 "기존 소개",
                 "기존 상호",
                 "기존 주소",
@@ -1325,5 +1401,9 @@ class EngineerServiceTest {
                         List.of()
                 );
         SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    private static String imageUrl(String fileName) {
+        return "https://image.test/engineer/" + fileName;
     }
 }

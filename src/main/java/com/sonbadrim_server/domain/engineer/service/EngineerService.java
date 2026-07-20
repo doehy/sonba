@@ -14,6 +14,7 @@ import com.sonbadrim_server.domain.engineer.entity.InterestedEngineer;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
 import com.sonbadrim_server.domain.engineer.repository.InterestedEngineerRepository;
+import com.sonbadrim_server.domain.image.service.ImagePolicyValidator;
 import com.sonbadrim_server.domain.portfolio.entity.Portfolio;
 import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
 import com.sonbadrim_server.domain.region.entity.Region;
@@ -51,6 +52,7 @@ public class EngineerService {
     private final RegionRepository regionRepository;
     private final UserService userService;
     private final InterestedEngineerRepository interestedEngineerRepository;
+    private final ImagePolicyValidator imagePolicyValidator;
 
     /**
      * 기술자 등록하기
@@ -74,11 +76,12 @@ public class EngineerService {
         List<Category> categories = validateAndGetCategories(request.getCategories());
         List<String> normalizedPortfolioImages =
                 validateAndNormalizePortfolioImages(request.getPortfolioImages());
+        String normalizedProfileImage = imagePolicyValidator.validateProfileImageUrl(request.getProfileImage());
 
         Engineer engineer = Engineer.create(
                 currentUser,
                 region,
-                trimToNull(request.getProfileImage()),
+                normalizedProfileImage,
                 trimToNull(request.getIntroduction()),
                 trimToNull(request.getStoreName()),
                 trimToNull(request.getStoreAddress()),
@@ -130,13 +133,14 @@ public class EngineerService {
         List<Category> categories = validateAndGetCategories(request.getCategories());
         List<String> normalizedPortfolioImages =
                 validateAndNormalizePortfolioImages(request.getPortfolioImages());
+        String normalizedProfileImage = imagePolicyValidator.validateProfileImageUrl(request.getProfileImage());
 
         engineer.updateInfo(
                 request.getEngineerName().trim(),
                 request.getHeadline().trim(),
                 normalizedPhone,
                 request.getPhonePublic(),
-                trimToNull(request.getProfileImage()),
+                normalizedProfileImage,
                 trimToNull(request.getIntroduction()),
                 trimToNull(request.getStoreName()),
                 trimToNull(request.getStoreAddress()),
@@ -320,6 +324,7 @@ public class EngineerService {
         List<String> normalizedPortfolioImages = portfolioImages.stream()
                 .map(this::trimToNull)
                 .filter(image -> image != null)
+                .map(imagePolicyValidator::validatePortfolioImageUrl)
                 .distinct()
                 .toList();
 

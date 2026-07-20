@@ -24,6 +24,7 @@ public class ImageService {
     private static final long MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
     private final S3Presigner s3Presigner;
+    private final ImagePolicyValidator imagePolicyValidator;
 
     @Value("${cloudflare.r2.bucket}")
     private String bucketName;
@@ -44,10 +45,10 @@ public class ImageService {
             Long imageSize
     ) {
         ImageFolderType imageFolderType = validateImageFolderType(imageFolderTypeStr);
-        validateImageContentType(contentType);
+        String extension = imagePolicyValidator.validateUploadFile(originalFileName, contentType);
         validateImageSize(imageSize);
 
-        String fileName = generateFileName(originalFileName);
+        String fileName = generateFileName(extension);
         String key = imageFolderType.getFolder() + "/" + fileName;
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
@@ -77,16 +78,8 @@ public class ImageService {
         return String.format("%s/%s/%s", endpoint, bucketName, key);
     }
 
-    private String generateFileName(String originalFileName) {
-        String extension = getFileExtension(originalFileName);
+    private String generateFileName(String extension) {
         return UUID.randomUUID() + extension;
-    }
-
-    private String getFileExtension(String fileName) {
-        if (fileName == null || !fileName.contains(".")) {
-            return "";
-        }
-        return fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
     }
 
     private ImageFolderType validateImageFolderType(String imageFolderTypeStr) {
@@ -95,17 +88,6 @@ public class ImageService {
             throw new CustomException(ErrorCode.INVALID_IMAGE_FOLDER_TYPE);
         }
         return imageFolderType;
-    }
-
-    private void validateImageContentType(String contentType) {
-        boolean valid =
-                "image/jpeg".equals(contentType)
-                        || "image/png".equals(contentType)
-                        || "image/webp".equals(contentType);
-
-        if (!valid) {
-            throw new CustomException(ErrorCode.INVALID_IMAGE_CONTENT_TYPE);
-        }
     }
 
     private void validateImageSize(Long imageSize) {
