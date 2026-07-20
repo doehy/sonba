@@ -19,14 +19,8 @@ public class ImagePolicyValidator {
             ".webp", "image/webp"
     );
 
-    @Value("${cloudflare.r2.bucket}")
-    private String bucketName;
-
-    @Value("${cloudflare.r2.public-domain:}")
+    @Value("${cloudflare.r2.public-domain}")
     private String publicDomain;
-
-    @Value("${cloudflare.r2.endpoint}")
-    private String endpoint;
 
     public String validateUploadFile(String originalFileName, String contentType) {
         String extension = extractExtension(originalFileName);
@@ -94,11 +88,6 @@ public class ImagePolicyValidator {
         String normalizedPublicDomain = trimTrailingSlash(publicDomain);
         if (!normalizedPublicDomain.isEmpty() && imageUrl.startsWith(normalizedPublicDomain + "/")) {
             return imageUrl.substring(normalizedPublicDomain.length() + 1);
-        }
-
-        String endpointPrefix = trimTrailingSlash(endpoint) + "/" + bucketName + "/";
-        if (imageUrl.startsWith(endpointPrefix)) {
-            return imageUrl.substring(endpointPrefix.length());
         }
 
         return null;

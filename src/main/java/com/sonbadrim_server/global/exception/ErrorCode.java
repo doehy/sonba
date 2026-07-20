@@ -56,15 +56,15 @@ public enum ErrorCode {
     NOTIFICATION_BROADCAST_NOT_FOUND(404, "NOTIFICATION_404_2", "공지 알림 발송 작업을 찾을 수 없습니다."),
     NOTIFICATION_BROADCAST_NOT_RETRYABLE(409, "NOTIFICATION_409_1", "실패한 공지 알림 발송 작업만 재시도할 수 있습니다."),
 
-    // Image
+    // Engineer Image
     INVALID_PROFILE_IMAGE(400, "IMAGE_400_1", "유효하지 않은 프로필 이미지입니다."),
     INVALID_PORTFOLIO_IMAGE(400, "IMAGE_400_2", "유효하지 않은 포트폴리오 이미지입니다."),
 
     // Image
-    INVALID_IMAGE_FOLDER_TYPE(400, "IMAGE_400_1", "유효하지 않은 이미지 폴더 타입입니다."),
-    INVALID_IMAGE_CONTENT_TYPE(400, "IMAGE_400_2", "지원하지 않는 이미지 형식입니다."),
-    INVALID_IMAGE_SIZE(400, "IMAGE_400_3", "이미지 크기가 유효하지 않습니다."),
-    IMAGE_SIZE_EXCEEDED(400, "IMAGE_400_4", "이미지 크기는 10MB 이하여야 합니다.");
+    INVALID_IMAGE_FOLDER_TYPE(400, "IMAGE_400_3", "유효하지 않은 이미지 폴더 타입입니다."),
+    INVALID_IMAGE_CONTENT_TYPE(400, "IMAGE_400_4", "지원하지 않는 이미지 형식입니다."),
+    INVALID_IMAGE_SIZE(400, "IMAGE_400_5", "이미지 크기가 유효하지 않습니다."),
+    IMAGE_SIZE_EXCEEDED(400, "IMAGE_400_6", "이미지 크기는 5MB 이하여야 합니다.");
 
     private final int status;
     private final String code;

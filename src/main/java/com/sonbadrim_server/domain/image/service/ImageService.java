@@ -21,7 +21,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ImageService {
 
-    private static final long MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+    private static final long MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
     private final S3Presigner s3Presigner;
     private final ImagePolicyValidator imagePolicyValidator;
@@ -29,11 +29,8 @@ public class ImageService {
     @Value("${cloudflare.r2.bucket}")
     private String bucketName;
 
-    @Value("${cloudflare.r2.public-domain:}")
+    @Value("${cloudflare.r2.public-domain}")
     private String publicDomain;
-
-    @Value("${cloudflare.r2.endpoint}")
-    private String endpoint;
 
     @Value("${cloudflare.r2.presigned-expiration-seconds}")
     private long presignedExpirationSeconds;
@@ -72,10 +69,7 @@ public class ImageService {
     }
 
     private String getImageUrl(String key) {
-        if (publicDomain != null && !publicDomain.isBlank()) {
-            return String.format("%s/%s", publicDomain, key);
-        }
-        return String.format("%s/%s/%s", endpoint, bucketName, key);
+        return String.format("%s/%s", trimTrailingSlash(publicDomain), key);
     }
 
     private String generateFileName(String extension) {
@@ -97,5 +91,12 @@ public class ImageService {
         if (imageSize > MAX_IMAGE_SIZE) {
             throw new CustomException(ErrorCode.IMAGE_SIZE_EXCEEDED);
         }
+    }
+
+    private String trimTrailingSlash(String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException("cloudflare.r2.public-domain must not be blank");
+        }
+        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
     }
 }

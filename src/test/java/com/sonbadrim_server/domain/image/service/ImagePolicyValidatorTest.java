@@ -17,9 +17,7 @@ class ImagePolicyValidatorTest {
     @BeforeEach
     void setUp() {
         imagePolicyValidator = new ImagePolicyValidator();
-        ReflectionTestUtils.setField(imagePolicyValidator, "bucketName", "sonbadream-image");
         ReflectionTestUtils.setField(imagePolicyValidator, "publicDomain", "https://image.test");
-        ReflectionTestUtils.setField(imagePolicyValidator, "endpoint", "https://r2.test");
     }
 
     @Test
@@ -69,6 +67,18 @@ class ImagePolicyValidatorTest {
     void validatePortfolioImageUrl_rejectExternalUrl() {
         // when & then
         assertThatThrownBy(() -> imagePolicyValidator.validatePortfolioImageUrl("https://evil.example.com/a.png"))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+    }
+
+    @Test
+    @DisplayName("R2 endpoint URL은 포트폴리오 이미지로 저장할 수 없다")
+    void validatePortfolioImageUrl_rejectEndpointUrl() {
+        // when & then
+        assertThatThrownBy(() -> imagePolicyValidator.validatePortfolioImageUrl(
+                        "https://r2.test/sonbadream-image/engineer/profile.png"
+                ))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.INVALID_PORTFOLIO_IMAGE);
