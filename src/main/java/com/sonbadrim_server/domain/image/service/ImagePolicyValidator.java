@@ -3,14 +3,23 @@ package com.sonbadrim_server.domain.image.service;
 import com.sonbadrim_server.domain.image.entity.ImageFolderType;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.net.URI;
 import java.util.Map;
 
 @Component
+@RequiredArgsConstructor
 public class ImagePolicyValidator {
+
+    private static final String IMAGE_HEADER_RANGE = "bytes=0-15";
 
     private static final Map<String, String> CONTENT_TYPE_BY_EXTENSION = Map.of(
             ".jpg", "image/jpeg",
@@ -18,6 +27,11 @@ public class ImagePolicyValidator {
             ".png", "image/png",
             ".webp", "image/webp"
     );
+
+    private final S3Client s3Client;
+
+    @Value("${cloudflare.r2.bucket}")
+    private String bucketName;
 
     @Value("${cloudflare.r2.public-domain}")
     private String publicDomain;
@@ -70,6 +84,67 @@ public class ImagePolicyValidator {
         if (!CONTENT_TYPE_BY_EXTENSION.containsKey(extension)) {
             throw new CustomException(errorCode);
         }
+
+        validateMagicNumber(key, extension, errorCode);
+    }
+
+    private void validateMagicNumber(String key, String extension, ErrorCode errorCode) {
+        byte[] header = getImageHeader(key, errorCode);
+        boolean valid = switch (extension) {
+            case ".jpg", ".jpeg" -> isJpeg(header);
+            case ".png" -> isPng(header);
+            case ".webp" -> isWebp(header);
+            default -> false;
+        };
+
+        if (!valid) {
+            throw new CustomException(errorCode);
+        }
+    }
+
+    private byte[] getImageHeader(String key, ErrorCode errorCode) {
+        try {
+            GetObjectRequest request = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .range(IMAGE_HEADER_RANGE)
+                    .build();
+            ResponseBytes<GetObjectResponse> responseBytes = s3Client.getObject(request, ResponseTransformer.toBytes());
+            return responseBytes.asByteArray();
+        } catch (Exception e) {
+            throw new CustomException(errorCode);
+        }
+    }
+
+    private boolean isJpeg(byte[] header) {
+        return header.length >= 3
+                && (header[0] & 0xFF) == 0xFF
+                && (header[1] & 0xFF) == 0xD8
+                && (header[2] & 0xFF) == 0xFF;
+    }
+
+    private boolean isPng(byte[] header) {
+        return header.length >= 8
+                && (header[0] & 0xFF) == 0x89
+                && header[1] == 0x50
+                && header[2] == 0x4E
+                && header[3] == 0x47
+                && header[4] == 0x0D
+                && header[5] == 0x0A
+                && header[6] == 0x1A
+                && header[7] == 0x0A;
+    }
+
+    private boolean isWebp(byte[] header) {
+        return header.length >= 12
+                && header[0] == 0x52
+                && header[1] == 0x49
+                && header[2] == 0x46
+                && header[3] == 0x46
+                && header[8] == 0x57
+                && header[9] == 0x45
+                && header[10] == 0x42
+                && header[11] == 0x50;
     }
 
     private URI parseUri(String imageUrl, ErrorCode errorCode) {

@@ -45,11 +45,17 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 @SpringBootTest
@@ -98,6 +104,9 @@ class EngineerServiceTest {
     @MockitoBean
     private UserService userService;
 
+    @MockitoBean
+    private S3Client s3Client;
+
     private User currentUser;
     private Region region;
 
@@ -107,6 +116,11 @@ class EngineerServiceTest {
         currentUser = saveUser(900000000001L, "테스트유저");
 
         given(userService.getCurrentUser()).willReturn(currentUser);
+        given(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+                .willReturn(ResponseBytes.fromByteArray(
+                        GetObjectResponse.builder().build(),
+                        new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00}
+                ));
     }
 
     @AfterEach

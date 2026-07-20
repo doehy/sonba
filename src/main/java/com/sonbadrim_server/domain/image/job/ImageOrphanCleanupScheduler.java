@@ -33,11 +33,8 @@ public class ImageOrphanCleanupScheduler {
     @Value("${cloudflare.r2.bucket}")
     private String bucketName;
 
-    @Value("${cloudflare.r2.public-domain:}")
+    @Value("${cloudflare.r2.public-domain}")
     private String publicDomain;
-
-    @Value("${cloudflare.r2.endpoint}")
-    private String endpoint;
 
     @Value("${image.cleanup.enabled:true}")
     private boolean cleanupEnabled;
@@ -154,11 +151,6 @@ public class ImageOrphanCleanupScheduler {
         String normalizedPublic = trimTrailingSlash(publicDomain);
         if (!normalizedPublic.isEmpty() && url.startsWith(normalizedPublic + "/")) {
             return url.substring(normalizedPublic.length() + 1);
-        }
-
-        String endpointPrefix = trimTrailingSlash(endpoint) + "/" + bucketName + "/";
-        if (url.startsWith(endpointPrefix)) {
-            return url.substring(endpointPrefix.length());
         }
 
         return null;
