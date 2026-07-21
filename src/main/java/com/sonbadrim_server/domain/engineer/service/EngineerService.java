@@ -14,6 +14,7 @@ import com.sonbadrim_server.domain.engineer.entity.InterestedEngineer;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
 import com.sonbadrim_server.domain.engineer.repository.InterestedEngineerRepository;
+import com.sonbadrim_server.domain.image.event.ProfileImageUploadedEvent;
 import com.sonbadrim_server.domain.image.service.ImagePolicyValidator;
 import com.sonbadrim_server.domain.portfolio.entity.Portfolio;
 import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
@@ -25,6 +26,7 @@ import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -37,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -53,6 +56,7 @@ public class EngineerService {
     private final UserService userService;
     private final InterestedEngineerRepository interestedEngineerRepository;
     private final ImagePolicyValidator imagePolicyValidator;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 기술자 등록하기
@@ -102,6 +106,7 @@ public class EngineerService {
                 .toList();
 
         portfolioRepository.saveAll(portfolios);
+        publishProfileImageUploadedEvent(engineer.getEngineerId(), normalizedProfileImage);
 
         return new EngineerCreateResponse(engineer.getEngineerId());
     }
@@ -134,6 +139,7 @@ public class EngineerService {
         List<String> normalizedPortfolioImages =
                 validateAndNormalizePortfolioImages(request.getPortfolioImages());
         String normalizedProfileImage = imagePolicyValidator.validateProfileImageUrl(request.getProfileImage());
+        boolean profileImageChanged = !Objects.equals(engineer.getProfileImage(), normalizedProfileImage);
 
         engineer.updateInfo(
                 request.getEngineerName().trim(),
@@ -149,6 +155,9 @@ public class EngineerService {
 
         replaceCategories(engineer, categories);
         replacePortfolioImages(engineer, normalizedPortfolioImages);
+        if (profileImageChanged) {
+            publishProfileImageUploadedEvent(engineer.getEngineerId(), normalizedProfileImage);
+        }
     }
 
     /**
@@ -167,7 +176,7 @@ public class EngineerService {
         return engineerSlice.map(engineer -> EngineerSummaryResponseDto.builder()
                 .engineerId(engineer.getEngineerId())
                 .engineerName(engineer.getEngineerName())
-                .profileImage(engineer.getProfileImage())
+                .profileImage(engineer.getDisplayProfileImage())
                 .categories(categoryMap.getOrDefault(engineer.getEngineerId(), Collections.emptyList()))
                 .introduction(truncateIntroduction(engineer.getIntroduction()))
                 .build()
@@ -354,6 +363,12 @@ public class EngineerService {
                 .toList();
 
         portfolioRepository.saveAll(images);
+    }
+
+    private void publishProfileImageUploadedEvent(Long engineerId, String profileImageUrl) {
+        if (profileImageUrl != null && !profileImageUrl.isBlank()) {
+            eventPublisher.publishEvent(new ProfileImageUploadedEvent(engineerId, profileImageUrl));
+        }
     }
 
     private String trimToNull(String value) {

@@ -4,7 +4,9 @@ import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -56,6 +58,27 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long>, Engin
               and e.profileImage <> ''
             """)
     List<String> findAllUsedProfileImageUrls();
+
+    @Query("""
+            select e.profileThumbnailImage
+            from Engineer e
+            where e.profileThumbnailImage is not null
+              and e.profileThumbnailImage <> ''
+            """)
+    List<String> findAllUsedProfileThumbnailImageUrls();
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Engineer e
+            set e.profileThumbnailImage = :thumbnailImage
+            where e.engineerId = :engineerId
+              and e.profileImage = :originalProfileImage
+            """)
+    int updateProfileThumbnailImageIfProfileUnchanged(
+            @Param("engineerId") Long engineerId,
+            @Param("originalProfileImage") String originalProfileImage,
+            @Param("thumbnailImage") String thumbnailImage
+    );
 
     boolean existsByPhoneAndEngineerIdNot(String phone, Long engineerId);
 }

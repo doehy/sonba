@@ -15,7 +15,7 @@ public class InterestedEngineerItemResponseDto {
         return new InterestedEngineerItemResponseDto(
                 engineer.getEngineerId(),
                 engineer.getEngineerName(),
-                engineer.getProfileImage()
+                engineer.getDisplayProfileImage()
         );
     }
 }

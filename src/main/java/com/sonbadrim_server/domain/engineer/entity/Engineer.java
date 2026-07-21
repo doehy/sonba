@@ -7,6 +7,7 @@ import jakarta.persistence.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import com.sonbadrim_server.global.BaseTimeEntity;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -39,6 +40,9 @@ public class Engineer extends BaseTimeEntity {
 
     @Column(name = "profileImage", length = 512)
     private String profileImage;
+
+    @Column(name = "profile_thumbnail_image", length = 512)
+    private String profileThumbnailImage;
 
     @Column(name = "introduction", columnDefinition = "TEXT", length = 300)
     private String introduction;
@@ -83,6 +87,7 @@ public class Engineer extends BaseTimeEntity {
         engineer.user = user;
         engineer.region = region;
         engineer.profileImage = profileImage;
+        engineer.profileThumbnailImage = null;
         engineer.introduction = introduction;
         engineer.storeName = storeName;
         engineer.storeAddress = storeAddress;
@@ -108,10 +113,19 @@ public class Engineer extends BaseTimeEntity {
         this.headline = headline;
         this.phone = phone;
         this.phonePublic = phonePublic;
+        if (!Objects.equals(this.profileImage, profileImage)) {
+            this.profileThumbnailImage = null;
+        }
         this.profileImage = profileImage;
         this.introduction = introduction;
         this.storeName = storeName;
         this.storeAddress = storeAddress;
         this.region = region;
+    }
+
+    public String getDisplayProfileImage() {
+        return profileThumbnailImage != null && !profileThumbnailImage.isBlank()
+                ? profileThumbnailImage
+                : profileImage;
     }
 }

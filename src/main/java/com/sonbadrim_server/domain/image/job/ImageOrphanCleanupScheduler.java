@@ -115,9 +115,21 @@ public class ImageOrphanCleanupScheduler {
         Set<String> unresolvedSamples = new HashSet<>();
 
         List<String> profileUrls = engineerRepository.findAllUsedProfileImageUrls();
+        List<String> profileThumbnailUrls = engineerRepository.findAllUsedProfileThumbnailImageUrls();
         List<String> portfolioUrls = portfolioRepository.findAllUsedPortfolioImageUrls();
 
         for (String url : profileUrls) {
+            String key = extractKey(url);
+            if (key != null) {
+                keys.add(key);
+            } else {
+                unresolvedCount.incrementAndGet();
+                if (unresolvedSamples.size() < 5) {
+                    unresolvedSamples.add(url);
+                }
+            }
+        }
+        for (String url : profileThumbnailUrls) {
             String key = extractKey(url);
             if (key != null) {
                 keys.add(key);
