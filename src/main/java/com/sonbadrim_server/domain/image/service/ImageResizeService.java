@@ -2,6 +2,7 @@ package com.sonbadrim_server.domain.image.service;
 
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
 import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -35,10 +36,12 @@ public class ImageResizeService {
     private static final String PORTFOLIO_THUMBNAIL_PREFIX = "engineer/portfolio-thumbnail/";
     private static final String THUMBNAIL_FORMAT = "jpg";
     private static final String THUMBNAIL_CONTENT_TYPE = "image/jpeg";
+    private static final String THUMBNAIL_METRIC_NAME = "image.thumbnail.processed";
 
     private final S3Client s3Client;
     private final EngineerRepository engineerRepository;
     private final PortfolioRepository portfolioRepository;
+    private final MeterRegistry meterRegistry;
 
     @Value("${cloudflare.r2.bucket}")
     private String bucketName;
@@ -57,10 +60,12 @@ public class ImageResizeService {
 
         String originalKey = extractKey(profileImageUrl);
         if (originalKey == null || !originalKey.startsWith(ENGINEER_PREFIX)) {
+            recordThumbnailMetric("profile", "skipped", "invalid_key");
             return;
         }
 
         if (!isSupportedOriginalExtension(originalKey)) {
+            recordThumbnailMetric("profile", "skipped", "unsupported_extension");
             log.warn("Skip profile thumbnail: unsupported extension. engineerId={}, key={}", engineerId, originalKey);
             return;
         }
@@ -72,6 +77,7 @@ public class ImageResizeService {
                     PROFILE_THUMBNAIL_MAX_HEIGHT
             );
             if (resizedBytes == null) {
+                recordThumbnailMetric("profile", "skipped", "unsupported_content");
                 log.warn("Skip profile thumbnail: unsupported image content. engineerId={}, key={}", engineerId, originalKey);
                 return;
             }
@@ -85,7 +91,9 @@ public class ImageResizeService {
                     profileImageUrl,
                     thumbnailUrl
             );
+            recordThumbnailMetric("profile", "success", "none");
         } catch (Exception e) {
+            recordThumbnailMetric("profile", "failed", "exception");
             log.warn("Failed to create profile thumbnail. engineerId={}, key={}", engineerId, originalKey, e);
         }
     }
@@ -101,10 +109,12 @@ public class ImageResizeService {
 
         String originalKey = extractKey(portfolioImageUrl);
         if (originalKey == null || !originalKey.startsWith(ENGINEER_PREFIX)) {
+            recordThumbnailMetric("portfolio", "skipped", "invalid_key");
             return;
         }
 
         if (!isSupportedOriginalExtension(originalKey)) {
+            recordThumbnailMetric("portfolio", "skipped", "unsupported_extension");
             log.warn("Skip portfolio thumbnail: unsupported extension. portfolioId={}, key={}", portfolioId, originalKey);
             return;
         }
@@ -116,6 +126,7 @@ public class ImageResizeService {
                     PORTFOLIO_THUMBNAIL_MAX_HEIGHT
             );
             if (resizedBytes == null) {
+                recordThumbnailMetric("portfolio", "skipped", "unsupported_content");
                 log.warn("Skip portfolio thumbnail: unsupported image content. portfolioId={}, key={}", portfolioId, originalKey);
                 return;
             }
@@ -129,9 +140,23 @@ public class ImageResizeService {
                     portfolioImageUrl,
                     thumbnailUrl
             );
+            recordThumbnailMetric("portfolio", "success", "none");
         } catch (Exception e) {
+            recordThumbnailMetric("portfolio", "failed", "exception");
             log.warn("Failed to create portfolio thumbnail. portfolioId={}, key={}", portfolioId, originalKey, e);
         }
+    }
+
+    /**
+     * 썸네일 처리 결과를 Micrometer Counter 지표로 기록한다.
+     */
+    private void recordThumbnailMetric(String usage, String result, String reason) {
+        meterRegistry.counter(
+                THUMBNAIL_METRIC_NAME,
+                "usage", usage,
+                "result", result,
+                "reason", reason
+        ).increment();
     }
 
     /**

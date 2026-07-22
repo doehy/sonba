@@ -2,6 +2,7 @@ package com.sonbadrim_server.domain.image.service;
 
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
 import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -35,6 +36,7 @@ class ImageResizeServiceTest {
     private S3Client s3Client;
     private EngineerRepository engineerRepository;
     private PortfolioRepository portfolioRepository;
+    private SimpleMeterRegistry meterRegistry;
     private ImageResizeService imageResizeService;
 
     @BeforeEach
@@ -42,7 +44,8 @@ class ImageResizeServiceTest {
         s3Client = mock(S3Client.class);
         engineerRepository = mock(EngineerRepository.class);
         portfolioRepository = mock(PortfolioRepository.class);
-        imageResizeService = new ImageResizeService(s3Client, engineerRepository, portfolioRepository);
+        meterRegistry = new SimpleMeterRegistry();
+        imageResizeService = new ImageResizeService(s3Client, engineerRepository, portfolioRepository, meterRegistry);
         ReflectionTestUtils.setField(imageResizeService, "bucketName", "sonbadream-image");
         ReflectionTestUtils.setField(imageResizeService, "publicDomain", "https://image.test");
     }
@@ -79,6 +82,7 @@ class ImageResizeServiceTest {
                 PROFILE_IMAGE_URL,
                 "https://image.test/engineer/thumbnail/profile.jpg"
         );
+        assertThat(thumbnailMetricCount("profile", "success", "none")).isEqualTo(1.0);
     }
 
     @Test
@@ -91,6 +95,7 @@ class ImageResizeServiceTest {
         verify(s3Client, never()).getObject(any(GetObjectRequest.class), any(ResponseTransformer.class));
         verify(s3Client, never()).putObject(any(PutObjectRequest.class), any(RequestBody.class));
         verify(engineerRepository, never()).updateProfileThumbnailImageIfProfileUnchanged(any(), any(), any());
+        assertThat(thumbnailMetricCount("profile", "skipped", "unsupported_extension")).isEqualTo(1.0);
     }
 
     @Test
@@ -154,6 +159,16 @@ class ImageResizeServiceTest {
                 portfolioImageUrl,
                 "https://image.test/engineer/portfolio-thumbnail/portfolio.jpg"
         );
+        assertThat(thumbnailMetricCount("portfolio", "success", "none")).isEqualTo(1.0);
+    }
+
+    private double thumbnailMetricCount(String usage, String result, String reason) {
+        return meterRegistry.counter(
+                "image.thumbnail.processed",
+                "usage", usage,
+                "result", result,
+                "reason", reason
+        ).count();
     }
 
     private byte[] jpegBytes(int width, int height) throws Exception {
