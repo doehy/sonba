@@ -33,10 +33,20 @@ public class Portfolio extends BaseTimeEntity {
     @Column(name = "portfolioImage", nullable = false, length = 255)
     private String portfolioImage;
 
+    @Column(name = "portfolio_thumbnail_image", length = 512)
+    private String portfolioThumbnailImage;
+
     public static Portfolio create(Engineer engineer, String portfolioImage) {
         Portfolio portfolio = new Portfolio();
         portfolio.engineer = engineer;
         portfolio.portfolioImage = portfolioImage;
+        portfolio.portfolioThumbnailImage = null;
         return portfolio;
+    }
+
+    public String getDisplayPortfolioImage() {
+        return portfolioThumbnailImage != null && !portfolioThumbnailImage.isBlank()
+                ? portfolioThumbnailImage
+                : portfolioImage;
     }
 }

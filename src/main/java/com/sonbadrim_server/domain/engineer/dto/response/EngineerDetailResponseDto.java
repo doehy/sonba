@@ -23,8 +23,14 @@ public class EngineerDetailResponseDto {
     private boolean phonePublic;
     private boolean interested;
     private List<String> portfolioImages;
+    private List<String> portfolioThumbnailImages;
 
-    public static EngineerDetailResponseDto from(Engineer engineer, List<String> portfolioImages, boolean interested) {
+    public static EngineerDetailResponseDto from(
+            Engineer engineer,
+            List<String> portfolioImages,
+            List<String> portfolioThumbnailImages,
+            boolean interested
+    ) {
         return EngineerDetailResponseDto.builder()
                 .engineerId(engineer.getEngineerId())
                 .userId(engineer.getUser().getUserId())
@@ -45,6 +51,7 @@ public class EngineerDetailResponseDto {
                 .phonePublic(engineer.isPhonePublic())
                 .interested(interested)
                 .portfolioImages(portfolioImages)
+                .portfolioThumbnailImages(portfolioThumbnailImages)
                 .build();
     }
 }

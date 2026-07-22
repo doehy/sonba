@@ -1,6 +1,7 @@
 package com.sonbadrim_server.domain.image.service;
 
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
+import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -27,13 +28,17 @@ public class ImageResizeService {
 
     private static final int PROFILE_THUMBNAIL_MAX_WIDTH = 600;
     private static final int PROFILE_THUMBNAIL_MAX_HEIGHT = 600;
+    private static final int PORTFOLIO_THUMBNAIL_MAX_WIDTH = 800;
+    private static final int PORTFOLIO_THUMBNAIL_MAX_HEIGHT = 800;
     private static final String ENGINEER_PREFIX = "engineer/";
     private static final String PROFILE_THUMBNAIL_PREFIX = "engineer/thumbnail/";
+    private static final String PORTFOLIO_THUMBNAIL_PREFIX = "engineer/portfolio-thumbnail/";
     private static final String THUMBNAIL_FORMAT = "jpg";
     private static final String THUMBNAIL_CONTENT_TYPE = "image/jpeg";
 
     private final S3Client s3Client;
     private final EngineerRepository engineerRepository;
+    private final PortfolioRepository portfolioRepository;
 
     @Value("${cloudflare.r2.bucket}")
     private String bucketName;
@@ -61,24 +66,18 @@ public class ImageResizeService {
         }
 
         try {
-            BufferedImage originalImage = readImage(originalKey);
-            if (originalImage == null) {
+            byte[] resizedBytes = createThumbnailBytes(
+                    originalKey,
+                    PROFILE_THUMBNAIL_MAX_WIDTH,
+                    PROFILE_THUMBNAIL_MAX_HEIGHT
+            );
+            if (resizedBytes == null) {
                 log.warn("Skip profile thumbnail: unsupported image content. engineerId={}, key={}", engineerId, originalKey);
                 return;
             }
-
-            BufferedImage resizedImage = resize(originalImage, PROFILE_THUMBNAIL_MAX_WIDTH, PROFILE_THUMBNAIL_MAX_HEIGHT);
-            byte[] resizedBytes = writeImage(toRgbImage(resizedImage), THUMBNAIL_FORMAT);
             String thumbnailKey = toThumbnailKey(originalKey);
 
-            s3Client.putObject(
-                    PutObjectRequest.builder()
-                            .bucket(bucketName)
-                            .key(thumbnailKey)
-                            .contentType(THUMBNAIL_CONTENT_TYPE)
-                            .build(),
-                    RequestBody.fromBytes(resizedBytes)
-            );
+            putThumbnail(thumbnailKey, resizedBytes);
 
             String thumbnailUrl = getImageUrl(thumbnailKey);
             engineerRepository.updateProfileThumbnailImageIfProfileUnchanged(
@@ -89,6 +88,77 @@ public class ImageResizeService {
         } catch (Exception e) {
             log.warn("Failed to create profile thumbnail. engineerId={}, key={}", engineerId, originalKey, e);
         }
+    }
+
+    /**
+     * 포트폴리오 원본 이미지를 읽어 JPG 썸네일을 생성하고, 생성된 썸네일 URL을 포트폴리오 정보에 저장한다.
+     */
+    @Transactional
+    public void createPortfolioThumbnail(Long portfolioId, String portfolioImageUrl) {
+        if (portfolioId == null || portfolioImageUrl == null || portfolioImageUrl.isBlank()) {
+            return;
+        }
+
+        String originalKey = extractKey(portfolioImageUrl);
+        if (originalKey == null || !originalKey.startsWith(ENGINEER_PREFIX)) {
+            return;
+        }
+
+        if (!isSupportedOriginalExtension(originalKey)) {
+            log.warn("Skip portfolio thumbnail: unsupported extension. portfolioId={}, key={}", portfolioId, originalKey);
+            return;
+        }
+
+        try {
+            byte[] resizedBytes = createThumbnailBytes(
+                    originalKey,
+                    PORTFOLIO_THUMBNAIL_MAX_WIDTH,
+                    PORTFOLIO_THUMBNAIL_MAX_HEIGHT
+            );
+            if (resizedBytes == null) {
+                log.warn("Skip portfolio thumbnail: unsupported image content. portfolioId={}, key={}", portfolioId, originalKey);
+                return;
+            }
+            String thumbnailKey = toPortfolioThumbnailKey(originalKey);
+
+            putThumbnail(thumbnailKey, resizedBytes);
+
+            String thumbnailUrl = getImageUrl(thumbnailKey);
+            portfolioRepository.updatePortfolioThumbnailImageIfPortfolioUnchanged(
+                    portfolioId,
+                    portfolioImageUrl,
+                    thumbnailUrl
+            );
+        } catch (Exception e) {
+            log.warn("Failed to create portfolio thumbnail. portfolioId={}, key={}", portfolioId, originalKey, e);
+        }
+    }
+
+    /**
+     * 원본 이미지를 읽고 지정한 최대 크기 안으로 축소한 JPG 썸네일 바이트 배열을 만든다.
+     */
+    private byte[] createThumbnailBytes(String originalKey, int maxWidth, int maxHeight) {
+        BufferedImage originalImage = readImage(originalKey);
+        if (originalImage == null) {
+            return null;
+        }
+
+        BufferedImage resizedImage = resize(originalImage, maxWidth, maxHeight);
+        return writeImage(toRgbImage(resizedImage), THUMBNAIL_FORMAT);
+    }
+
+    /**
+     * 생성된 썸네일 바이트 배열을 R2에 JPEG 객체로 업로드한다.
+     */
+    private void putThumbnail(String thumbnailKey, byte[] resizedBytes) {
+        s3Client.putObject(
+                PutObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(thumbnailKey)
+                        .contentType(THUMBNAIL_CONTENT_TYPE)
+                        .build(),
+                RequestBody.fromBytes(resizedBytes)
+        );
     }
 
     /**
@@ -192,10 +262,24 @@ public class ImageResizeService {
      * 원본 이미지 key를 프로필 썸네일 저장용 key로 변환한다.
      */
     private String toThumbnailKey(String originalKey) {
+        return toThumbnailKey(originalKey, PROFILE_THUMBNAIL_PREFIX);
+    }
+
+    /**
+     * 원본 이미지 key를 포트폴리오 썸네일 저장용 key로 변환한다.
+     */
+    private String toPortfolioThumbnailKey(String originalKey) {
+        return toThumbnailKey(originalKey, PORTFOLIO_THUMBNAIL_PREFIX);
+    }
+
+    /**
+     * 원본 이미지 key를 지정한 썸네일 prefix 아래의 JPG key로 변환한다.
+     */
+    private String toThumbnailKey(String originalKey, String thumbnailPrefix) {
         String fileName = originalKey.substring(ENGINEER_PREFIX.length());
         int lastDotIndex = fileName.lastIndexOf('.');
         String baseName = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
-        return PROFILE_THUMBNAIL_PREFIX + baseName + "." + THUMBNAIL_FORMAT;
+        return thumbnailPrefix + baseName + "." + THUMBNAIL_FORMAT;
     }
 
     /**

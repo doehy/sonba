@@ -117,6 +117,7 @@ public class ImageOrphanCleanupScheduler {
         List<String> profileUrls = engineerRepository.findAllUsedProfileImageUrls();
         List<String> profileThumbnailUrls = engineerRepository.findAllUsedProfileThumbnailImageUrls();
         List<String> portfolioUrls = portfolioRepository.findAllUsedPortfolioImageUrls();
+        List<String> portfolioThumbnailUrls = portfolioRepository.findAllUsedPortfolioThumbnailImageUrls();
 
         for (String url : profileUrls) {
             String key = extractKey(url);
@@ -141,6 +142,17 @@ public class ImageOrphanCleanupScheduler {
             }
         }
         for (String url : portfolioUrls) {
+            String key = extractKey(url);
+            if (key != null) {
+                keys.add(key);
+            } else {
+                unresolvedCount.incrementAndGet();
+                if (unresolvedSamples.size() < 5) {
+                    unresolvedSamples.add(url);
+                }
+            }
+        }
+        for (String url : portfolioThumbnailUrls) {
             String key = extractKey(url);
             if (key != null) {
                 keys.add(key);

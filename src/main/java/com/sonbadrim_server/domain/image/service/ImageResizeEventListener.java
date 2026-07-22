@@ -1,6 +1,6 @@
 package com.sonbadrim_server.domain.image.service;
 
-import com.sonbadrim_server.domain.image.event.ProfileImageUploadedEvent;
+import com.sonbadrim_server.domain.image.event.ImageUploadedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -15,7 +15,10 @@ public class ImageResizeEventListener {
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void handle(ProfileImageUploadedEvent event) {
-        imageResizeService.createProfileThumbnail(event.engineerId(), event.profileImageUrl());
+    public void handle(ImageUploadedEvent event) {
+        switch (event.usageType()) {
+            case ENGINEER_PROFILE -> imageResizeService.createProfileThumbnail(event.ownerId(), event.imageUrl());
+            case ENGINEER_PORTFOLIO -> imageResizeService.createPortfolioThumbnail(event.ownerId(), event.imageUrl());
+        }
     }
 }

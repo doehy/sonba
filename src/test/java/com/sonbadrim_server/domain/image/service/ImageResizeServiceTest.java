@@ -1,6 +1,7 @@
 package com.sonbadrim_server.domain.image.service;
 
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
+import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -33,13 +34,15 @@ class ImageResizeServiceTest {
 
     private S3Client s3Client;
     private EngineerRepository engineerRepository;
+    private PortfolioRepository portfolioRepository;
     private ImageResizeService imageResizeService;
 
     @BeforeEach
     void setUp() {
         s3Client = mock(S3Client.class);
         engineerRepository = mock(EngineerRepository.class);
-        imageResizeService = new ImageResizeService(s3Client, engineerRepository);
+        portfolioRepository = mock(PortfolioRepository.class);
+        imageResizeService = new ImageResizeService(s3Client, engineerRepository, portfolioRepository);
         ReflectionTestUtils.setField(imageResizeService, "bucketName", "sonbadream-image");
         ReflectionTestUtils.setField(imageResizeService, "publicDomain", "https://image.test");
     }
@@ -115,6 +118,41 @@ class ImageResizeServiceTest {
                 1L,
                 "https://image.test/engineer/profile.png",
                 "https://image.test/engineer/thumbnail/profile.jpg"
+        );
+    }
+
+    @Test
+    @DisplayName("포트폴리오 원본 이미지를 리사이징해서 썸네일로 업로드하고 DB에 반영한다")
+    void createPortfolioThumbnail_success() throws Exception {
+        // given
+        String portfolioImageUrl = "https://image.test/engineer/portfolio.jpg";
+        when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+                .thenReturn(ResponseBytes.fromByteArray(
+                        GetObjectResponse.builder().build(),
+                        jpegBytes(1600, 900)
+                ));
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+                .thenReturn(PutObjectResponse.builder().build());
+
+        // when
+        imageResizeService.createPortfolioThumbnail(10L, portfolioImageUrl);
+
+        // then
+        ArgumentCaptor<GetObjectRequest> getRequestCaptor = ArgumentCaptor.forClass(GetObjectRequest.class);
+        verify(s3Client).getObject(getRequestCaptor.capture(), any(ResponseTransformer.class));
+        assertThat(getRequestCaptor.getValue().bucket()).isEqualTo("sonbadream-image");
+        assertThat(getRequestCaptor.getValue().key()).isEqualTo("engineer/portfolio.jpg");
+
+        ArgumentCaptor<PutObjectRequest> putRequestCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        verify(s3Client).putObject(putRequestCaptor.capture(), any(RequestBody.class));
+        assertThat(putRequestCaptor.getValue().bucket()).isEqualTo("sonbadream-image");
+        assertThat(putRequestCaptor.getValue().key()).isEqualTo("engineer/portfolio-thumbnail/portfolio.jpg");
+        assertThat(putRequestCaptor.getValue().contentType()).isEqualTo("image/jpeg");
+
+        verify(portfolioRepository).updatePortfolioThumbnailImageIfPortfolioUnchanged(
+                10L,
+                portfolioImageUrl,
+                "https://image.test/engineer/portfolio-thumbnail/portfolio.jpg"
         );
     }
 

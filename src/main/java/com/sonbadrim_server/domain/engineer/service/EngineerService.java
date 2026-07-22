@@ -14,7 +14,8 @@ import com.sonbadrim_server.domain.engineer.entity.InterestedEngineer;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
 import com.sonbadrim_server.domain.engineer.repository.InterestedEngineerRepository;
-import com.sonbadrim_server.domain.image.event.ProfileImageUploadedEvent;
+import com.sonbadrim_server.domain.image.event.ImageUploadedEvent;
+import com.sonbadrim_server.domain.image.entity.ImageUsageType;
 import com.sonbadrim_server.domain.image.service.ImagePolicyValidator;
 import com.sonbadrim_server.domain.portfolio.entity.Portfolio;
 import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
@@ -105,8 +106,9 @@ public class EngineerService {
                 .map(image -> Portfolio.create(engineer, image))
                 .toList();
 
-        portfolioRepository.saveAll(portfolios);
+        List<Portfolio> savedPortfolios = portfolioRepository.saveAll(portfolios);
         publishProfileImageUploadedEvent(engineer.getEngineerId(), normalizedProfileImage);
+        publishPortfolioImageUploadedEvents(savedPortfolios);
 
         return new EngineerCreateResponse(engineer.getEngineerId());
     }
@@ -190,15 +192,19 @@ public class EngineerService {
     public EngineerDetailResponseDto getEngineerDetail(Long engineerId) {
         Engineer engineer = engineerRepository.findDetailByEngineerId(engineerId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
-        List<String> portfolioImages = portfolioRepository.findByEngineer_EngineerId(engineerId).stream()
+        List<Portfolio> portfolios = portfolioRepository.findByEngineer_EngineerId(engineerId);
+        List<String> portfolioImages = portfolios.stream()
                 .map(Portfolio::getPortfolioImage)
+                .toList();
+        List<String> portfolioThumbnailImages = portfolios.stream()
+                .map(Portfolio::getDisplayPortfolioImage)
                 .toList();
 
         Long currentUserId = getCurrentUserIdOrNull();
         boolean interested = currentUserId != null
                 && interestedEngineerRepository.existsByUser_UserIdAndEngineer_EngineerId(currentUserId, engineerId);
 
-        return EngineerDetailResponseDto.from(engineer, portfolioImages, interested);
+        return EngineerDetailResponseDto.from(engineer, portfolioImages, portfolioThumbnailImages, interested);
     }
 
     /**
@@ -362,13 +368,31 @@ public class EngineerService {
                 .map(imageUrl -> Portfolio.create(engineer, imageUrl))
                 .toList();
 
-        portfolioRepository.saveAll(images);
+        List<Portfolio> savedPortfolios = portfolioRepository.saveAll(images);
+        publishPortfolioImageUploadedEvents(savedPortfolios);
     }
 
     private void publishProfileImageUploadedEvent(Long engineerId, String profileImageUrl) {
         if (profileImageUrl != null && !profileImageUrl.isBlank()) {
-            eventPublisher.publishEvent(new ProfileImageUploadedEvent(engineerId, profileImageUrl));
+            eventPublisher.publishEvent(new ImageUploadedEvent(
+                    ImageUsageType.ENGINEER_PROFILE,
+                    engineerId,
+                    profileImageUrl
+            ));
         }
+    }
+
+    private void publishPortfolioImageUploadedEvents(List<Portfolio> portfolios) {
+        portfolios.stream()
+                .filter(portfolio -> portfolio.getPortfolioId() != null)
+                .filter(portfolio -> portfolio.getPortfolioImage() != null && !portfolio.getPortfolioImage().isBlank())
+                .forEach(portfolio -> eventPublisher.publishEvent(
+                        new ImageUploadedEvent(
+                                ImageUsageType.ENGINEER_PORTFOLIO,
+                                portfolio.getPortfolioId(),
+                                portfolio.getPortfolioImage()
+                        )
+                ));
     }
 
     private String trimToNull(String value) {
