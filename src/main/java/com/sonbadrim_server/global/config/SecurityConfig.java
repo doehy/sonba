@@ -37,6 +37,9 @@ public class SecurityConfig {
     @Value("${app.base-url}")
     private String baseUrl;
 
+    @Value("${app.actuator.prometheus-scrape-enabled:false}")
+    private boolean prometheusScrapeEnabled;
+
 
     private static final String[] AUTH_WHITELIST = {
             "/signup/**",
@@ -98,29 +101,34 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(header -> header.frameOptions(frame -> frame.sameOrigin()))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(AUTH_WHITELIST).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/actuator/prometheus").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/regions").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/engineers/interests").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/engineers").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/engineers/{engineerId}").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/search/engineers").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/search/engineers/suggestions").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/search/engineers/{engineerId}/recommendations").permitAll()
+                .authorizeHttpRequests(auth -> {
+                    auth
+                            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                            .requestMatchers(AUTH_WHITELIST).permitAll()
+                            .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/regions").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/engineers/interests").authenticated()
+                            .requestMatchers(HttpMethod.GET, "/engineers").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/engineers/{engineerId}").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/search/engineers").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/search/engineers/suggestions").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/search/engineers/{engineerId}/recommendations").permitAll();
 
-                        // Swagger 및 정적 자원 허용
-                        .requestMatchers(
-                                "/error", "/favicon.ico",
-                                "/swagger-ui/**", "/swagger-ui.html",
-                                "/v3/api-docs", "/v3/api-docs/**", "/swagger.html"
-                        ).permitAll()
-                        .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
-                        // 그 외는 인증 필요
-                        .anyRequest().authenticated()
-                );
+                    if (prometheusScrapeEnabled) {
+                        auth.requestMatchers(HttpMethod.GET, "/actuator/prometheus").permitAll();
+                    }
+
+                    auth
+                            // Swagger 및 정적 자원 허용
+                            .requestMatchers(
+                                    "/error", "/favicon.ico",
+                                    "/swagger-ui/**", "/swagger-ui.html",
+                                    "/v3/api-docs", "/v3/api-docs/**", "/swagger.html"
+                            ).permitAll()
+                            .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
+                            // 그 외는 인증 필요
+                            .anyRequest().authenticated();
+                });
 
         return http.build();
     }
