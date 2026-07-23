@@ -79,6 +79,10 @@ class AuthControllerTest {
                     .andExpect(header().string("Location", containsString("https://kauth.kakao.com/oauth/authorize")))
                     .andExpect(header().string("Location", containsString("client_id=test-client-id")))
                     .andExpect(header().string("Location", containsString("response_type=code")))
+                    .andExpect(header().string("Location", containsString("state=")))
+                    .andExpect(header().string("Set-Cookie", containsString("kakaoOAuthState=")))
+                    .andExpect(header().string("Set-Cookie", containsString("HttpOnly")))
+                    .andExpect(header().string("Set-Cookie", containsString("SameSite=Lax")))
                     .andExpect(header().string(
                             "Location",
                             containsString("redirect_uri=" + URLEncoder.encode(
@@ -106,12 +110,15 @@ class AuthControllerTest {
 
             // when & then
             mockMvc.perform(get("/auth/kakao/callback")
-                            .param("code", "code"))
+                            .param("code", "code")
+                            .param("state", "oauth-state")
+                            .cookie(new Cookie("kakaoOAuthState", "oauth-state")))
                     .andExpect(status().is3xxRedirection())
                     .andExpect(redirectedUrlPattern("http://localhost:5173/signup#accessToken=*"))
-                    .andExpect(header().string("Set-Cookie", containsString("refreshToken=refresh-token")))
-                    .andExpect(header().string("Set-Cookie", containsString("HttpOnly")))
-                    .andExpect(header().string("Set-Cookie", containsString("SameSite=Lax")));
+                    .andExpect(cookie().value("refreshToken", "refresh-token"))
+                    .andExpect(cookie().httpOnly("refreshToken", true))
+                    .andExpect(cookie().value("kakaoOAuthState", ""))
+                    .andExpect(cookie().maxAge("kakaoOAuthState", 0));
         }
 
         @Test
@@ -132,10 +139,44 @@ class AuthControllerTest {
 
             // when & then
             mockMvc.perform(get("/auth/kakao/callback")
-                            .param("code", "code"))
+                            .param("code", "code")
+                            .param("state", "oauth-state")
+                            .cookie(new Cookie("kakaoOAuthState", "oauth-state")))
                     .andExpect(status().is3xxRedirection())
                     .andExpect(redirectedUrlPattern("http://localhost:5173/#accessToken=*"))
-                    .andExpect(header().string("Set-Cookie", containsString("refreshToken=refresh-token")));
+                    .andExpect(cookie().value("refreshToken", "refresh-token"))
+                    .andExpect(cookie().httpOnly("refreshToken", true))
+                    .andExpect(cookie().value("kakaoOAuthState", ""))
+                    .andExpect(cookie().maxAge("kakaoOAuthState", 0));
+        }
+
+        @Test
+        @DisplayName("카카오 콜백 state가 쿠키와 다르면 로그인을 거부한다")
+        void kakaoLogin_invalidState() throws Exception {
+            // when & then
+            mockMvc.perform(get("/auth/kakao/callback")
+                            .param("code", "code")
+                            .param("state", "attacker-state")
+                            .cookie(new Cookie("kakaoOAuthState", "victim-state")))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("FORBIDDEN"));
+
+            verify(kakaoService, never()).getAccessToken(any());
+        }
+
+        @Test
+        @DisplayName("카카오 콜백 state 쿠키가 없으면 로그인을 거부한다")
+        void kakaoLogin_missingStateCookie() throws Exception {
+            // when & then
+            mockMvc.perform(get("/auth/kakao/callback")
+                            .param("code", "code")
+                            .param("state", "oauth-state"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("FORBIDDEN"));
+
+            verify(kakaoService, never()).getAccessToken(any());
         }
 
         @Test
@@ -160,7 +201,9 @@ class AuthControllerTest {
 
             // when & then
             mockMvc.perform(get("/auth/kakao/callback")
-                            .param("code", ""))
+                            .param("code", "")
+                            .param("state", "oauth-state")
+                            .cookie(new Cookie("kakaoOAuthState", "oauth-state")))
                     .andExpect(status().isBadGateway())
                     .andExpect(jsonPath("$.success").value(false))
                     .andExpect(jsonPath("$.data.code").value("KAKAO_LOGIN_FAILED"));

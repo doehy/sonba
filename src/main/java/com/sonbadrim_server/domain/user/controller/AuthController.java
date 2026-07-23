@@ -27,6 +27,8 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Map;
 
 @Log4j2
@@ -35,6 +37,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Tag(name = "Auth", description = "인증/인가 API")
 public class AuthController {
+    private static final String KAKAO_OAUTH_STATE_COOKIE = "kakaoOAuthState";
+    private static final int OAUTH_STATE_BYTE_LENGTH = 32;
+    private static final int OAUTH_STATE_MAX_AGE_SECONDS = 300;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final KakaoService kakaoService;
     private final UserService userService;
@@ -65,10 +71,14 @@ public class AuthController {
     @Operation(summary = "카카오 로그인 시작", description = "카카오 인가 페이지로 리다이렉트합니다.")
     @GetMapping("/kakao/login")
     public void redirectToKakaoLogin(HttpServletResponse response) throws IOException {
+        String state = generateOAuthState();
+        addOAuthStateCookie(response, state);
+
         String kakaoAuthUrl = "https://kauth.kakao.com/oauth/authorize"
                 + "?client_id=" + clientId
                 + "&redirect_uri=" + URLEncoder.encode(redirectUri, StandardCharsets.UTF_8)
-                + "&response_type=code";
+                + "&response_type=code"
+                + "&state=" + URLEncoder.encode(state, StandardCharsets.UTF_8);
 
         response.sendRedirect(kakaoAuthUrl);
     }
@@ -81,11 +91,16 @@ public class AuthController {
     @GetMapping("/kakao/callback")
     public void kakaoLogin(
             @RequestParam String code,
+            @RequestParam(required = false) String state,
+            @CookieValue(value = KAKAO_OAUTH_STATE_COOKIE, required = false) String storedState,
             HttpServletRequest request,
             HttpServletResponse response
     ) throws IOException {
         authRateLimiter.check(request, "kakao-callback");
         try {
+            validateOAuthState(state, storedState);
+            clearOAuthStateCookie(response);
+
             // 1. 인증 코드로 카카오 액세스 토큰 받기
             String kakaoAccessToken = kakaoService.getAccessToken(code);
 
@@ -174,6 +189,42 @@ public class AuthController {
 
     private void clearRefreshTokenCookie(HttpServletResponse response) {
         StringBuilder cookie = new StringBuilder("refreshToken=; Max-Age=0; Path=/; HttpOnly; SameSite=")
+                .append(cookieSameSite)
+                .append(";");
+        if (cookieSecure) {
+            cookie.append(" Secure;");
+        }
+        response.addHeader("Set-Cookie", cookie.toString());
+    }
+
+    private String generateOAuthState() {
+        byte[] bytes = new byte[OAUTH_STATE_BYTE_LENGTH];
+        SECURE_RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private void validateOAuthState(String requestState, String storedState) {
+        if (requestState == null || requestState.isBlank()
+                || storedState == null || storedState.isBlank()
+                || !requestState.equals(storedState)) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    private void addOAuthStateCookie(HttpServletResponse response, String state) {
+        StringBuilder cookie = new StringBuilder();
+        cookie.append(KAKAO_OAUTH_STATE_COOKIE).append("=").append(state).append("; ");
+        cookie.append("Max-Age=").append(OAUTH_STATE_MAX_AGE_SECONDS).append("; ");
+        cookie.append("Path=/auth/kakao; HttpOnly; SameSite=").append(cookieSameSite).append(";");
+        if (cookieSecure) {
+            cookie.append(" Secure;");
+        }
+        response.addHeader("Set-Cookie", cookie.toString());
+    }
+
+    private void clearOAuthStateCookie(HttpServletResponse response) {
+        StringBuilder cookie = new StringBuilder(KAKAO_OAUTH_STATE_COOKIE)
+                .append("=; Max-Age=0; Path=/auth/kakao; HttpOnly; SameSite=")
                 .append(cookieSameSite)
                 .append(";");
         if (cookieSecure) {
