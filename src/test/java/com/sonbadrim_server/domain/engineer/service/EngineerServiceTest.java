@@ -679,6 +679,53 @@ class EngineerServiceTest {
                     .containsExactly(NEW_PORTFOLIO_IMAGE, SECOND_PORTFOLIO_IMAGE);
         }
 
+        @Test
+        @DisplayName("수정 시 유지되는 포트폴리오는 삭제하지 않고 새 포트폴리오만 추가한다")
+        void updateEngineer_keepsUnchangedPortfolioAndAddsOnlyNewPortfolio() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            Portfolio unchangedPortfolio =
+                    portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
+            entityManager.flush();
+            portfolioRepository.updatePortfolioThumbnailImageIfPortfolioUnchanged(
+                    unchangedPortfolio.getPortfolioId(),
+                    OLD_PORTFOLIO_IMAGE,
+                    imageUrl("thumbnail/old-portfolio.jpg")
+            );
+            entityManager.flush();
+            entityManager.clear();
+
+            EngineerRequestDto request = createRequestBuilder()
+                    .portfolioImages(List.of(OLD_PORTFOLIO_IMAGE, NEW_PORTFOLIO_IMAGE))
+                    .phone("010-1111-2222")
+                    .build();
+
+            // when
+            engineerService.updateEngineer(engineer.getEngineerId(), request);
+            entityManager.flush();
+            entityManager.clear();
+
+            // then
+            List<Portfolio> updatedPortfolios =
+                    portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId());
+            assertThat(updatedPortfolios)
+                    .extracting(Portfolio::getPortfolioImage)
+                    .containsExactlyInAnyOrder(OLD_PORTFOLIO_IMAGE, NEW_PORTFOLIO_IMAGE);
+            assertThat(updatedPortfolios)
+                    .filteredOn(portfolio -> portfolio.getPortfolioImage().equals(OLD_PORTFOLIO_IMAGE))
+                    .singleElement()
+                    .satisfies(portfolio -> {
+                        assertThat(portfolio.getPortfolioId()).isEqualTo(unchangedPortfolio.getPortfolioId());
+                        assertThat(portfolio.getPortfolioThumbnailImage())
+                                .isEqualTo(imageUrl("thumbnail/old-portfolio.jpg"));
+                    });
+        }
+
         @ParameterizedTest
         @NullAndEmptySource
         @DisplayName("시공 분야가 없으면 기술자 정보를 수정할 수 없다")

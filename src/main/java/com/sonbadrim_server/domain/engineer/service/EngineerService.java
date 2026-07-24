@@ -39,9 +39,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -372,11 +374,28 @@ public class EngineerService {
     }
 
     private void replacePortfolioImages(Engineer engineer, List<String> portfolioImages) {
-        portfolioRepository.deleteAllByEngineer(engineer);
+        List<Portfolio> existingPortfolios =
+                portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId());
+        Set<String> requestedImageUrls = new HashSet<>(portfolioImages);
+        Set<String> existingImageUrls = existingPortfolios.stream()
+                .map(Portfolio::getPortfolioImage)
+                .collect(Collectors.toSet());
+
+        List<Portfolio> portfoliosToDelete = existingPortfolios.stream()
+                .filter(portfolio -> !requestedImageUrls.contains(portfolio.getPortfolioImage()))
+                .toList();
+        if (!portfoliosToDelete.isEmpty()) {
+            portfolioRepository.deleteAll(portfoliosToDelete);
+        }
 
         List<Portfolio> images = portfolioImages.stream()
+                .filter(imageUrl -> !existingImageUrls.contains(imageUrl))
                 .map(imageUrl -> Portfolio.create(engineer, imageUrl))
                 .toList();
+
+        if (images.isEmpty()) {
+            return;
+        }
 
         List<Portfolio> savedPortfolios = portfolioRepository.saveAll(images);
         publishPortfolioImageUploadedEvents(savedPortfolios);
