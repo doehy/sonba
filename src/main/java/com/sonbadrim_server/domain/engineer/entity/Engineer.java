@@ -59,7 +59,7 @@ public class Engineer extends BaseTimeEntity {
     @Column(name = "engineer_name", nullable = false, length = 20)
     private String engineerName;
 
-    @Column(name = "headline", nullable = false, length = 100)
+    @Column(name = "headline", length = 100)
     private String headline;
 
     @OneToMany(mappedBy = "engineer")

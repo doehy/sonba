@@ -28,6 +28,7 @@ import com.sonbadrim_server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -92,7 +93,7 @@ public class EngineerService {
                 trimToNull(request.getStoreAddress()),
                 normalizedPhone,
                 request.getEngineerName().trim(),
-                request.getHeadline().trim()
+                trimToNull(request.getHeadline())
         );
         engineerRepository.save(engineer);
 
@@ -144,7 +145,7 @@ public class EngineerService {
 
         engineer.updateInfo(
                 request.getEngineerName().trim(),
-                request.getHeadline().trim(),
+                trimToNull(request.getHeadline()),
                 normalizedPhone,
                 normalizedProfileImage,
                 trimToNull(request.getIntroduction()),
@@ -258,7 +259,18 @@ public class EngineerService {
             return;
         }
 
-        interestedEngineerRepository.save(InterestedEngineer.create(user, engineer));
+        try {
+            interestedEngineerRepository.saveAndFlush(InterestedEngineer.create(user, engineer));
+        } catch (DataIntegrityViolationException e) {
+            boolean alreadyInterested = interestedEngineerRepository.existsByUser_UserIdAndEngineer_EngineerId(
+                    user.getUserId(),
+                    engineerId
+            );
+            if (alreadyInterested) {
+                return;
+            }
+            throw e;
+        }
     }
 
     public void removeInterestedEngineer(Long engineerId) {

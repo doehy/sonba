@@ -172,6 +172,23 @@ class EngineerServiceTest {
         }
 
         @Test
+        @DisplayName("짧은 소개 없이도 기술자를 등록할 수 있다")
+        void registerEngineer_withoutHeadline() {
+            // given
+            EngineerRequestDto request = createRequestBuilder()
+                    .headline(null)
+                    .build();
+
+            // when
+            EngineerCreateResponse response = engineerService.registerEngineer(request);
+
+            // then
+            Engineer savedEngineer = engineerRepository.findById(response.getEngineerId())
+                    .orElseThrow();
+            assertThat(savedEngineer.getHeadline()).isNull();
+        }
+
+        @Test
         @DisplayName("이미 기술자로 등록한 사용자는 다시 등록할 수 없다")
         void registerEngineer_alreadyRegistered() {
             // given
@@ -517,6 +534,32 @@ class EngineerServiceTest {
             assertThat(updatedPortfolios)
                     .extracting(Portfolio::getPortfolioImage)
                     .containsExactly(NEW_PORTFOLIO_IMAGE);
+        }
+
+        @Test
+        @DisplayName("짧은 소개를 비워서 수정할 수 있다")
+        void updateEngineer_withoutHeadline() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
+
+            EngineerRequestDto request = createRequestBuilder()
+                    .headline(" ")
+                    .phone("010-1111-2222")
+                    .build();
+
+            // when
+            engineerService.updateEngineer(engineer.getEngineerId(), request);
+
+            // then
+            Engineer updatedEngineer = engineerRepository.findById(engineer.getEngineerId())
+                    .orElseThrow();
+            assertThat(updatedEngineer.getHeadline()).isNull();
         }
 
         @Test
