@@ -135,7 +135,6 @@ class EngineerServiceTest {
             assertThat(savedEngineer.getStoreName()).isEqualTo("테스트 상호");
             assertThat(savedEngineer.getStoreAddress()).isEqualTo("서울시 테스트구");
             assertThat(savedEngineer.getPhone()).isEqualTo("01012345678");
-            assertThat(savedEngineer.isPhonePublic()).isTrue();
             assertThat(savedEngineer.getEngineerName()).isEqualTo("김기술");
             assertThat(savedEngineer.getHeadline()).isEqualTo("주방 시공 전문");
 
@@ -159,7 +158,6 @@ class EngineerServiceTest {
                     null,
                     null,
                     "01011112222",
-                    false,
                     "기존기술자",
                     "기존 소개"
             );
@@ -382,7 +380,6 @@ class EngineerServiceTest {
                     null,
                     null,
                     "01012345678",
-                    false,
                     "기존기술자",
                     "기존 소개"
             );
@@ -429,7 +426,6 @@ class EngineerServiceTest {
                     .storeName(" 새로운 상호 ")
                     .storeAddress(" 새로운 주소 ")
                     .phone("010-2222-3333")
-                    .phonePublic(false)
                     .engineerName(" 새로운기술자 ")
                     .headline(" 새로운 짧은 소개 ")
                     .build();
@@ -448,7 +444,6 @@ class EngineerServiceTest {
             assertThat(updatedEngineer.getEngineerName()).isEqualTo("새로운기술자");
             assertThat(updatedEngineer.getHeadline()).isEqualTo("새로운 짧은 소개");
             assertThat(updatedEngineer.getPhone()).isEqualTo("01022223333");
-            assertThat(updatedEngineer.isPhonePublic()).isFalse();
             assertThat(updatedEngineer.getProfileImage()).isEqualTo("new-profile.jpg");
             assertThat(updatedEngineer.getIntroduction()).isEqualTo("새로운 소개");
             assertThat(updatedEngineer.getStoreName()).isEqualTo("새로운 상호");
@@ -765,7 +760,6 @@ class EngineerServiceTest {
                     "테스트 상호",
                     "테스트 주소",
                     "01011112222",
-                    true,
                     "목록기술자",
                     "목록 소개"
             );
@@ -838,7 +832,6 @@ class EngineerServiceTest {
             assertThat(result.getStoreName()).isEqualTo("기존 상호");
             assertThat(result.getStoreAddress()).isEqualTo("기존 주소");
             assertThat(result.getPhone()).isEqualTo("01011112222");
-            assertThat(result.isPhonePublic()).isTrue();
             assertThat(result.isInterested()).isFalse();
             assertThat(result.getPortfolioImages())
                     .containsExactly("portfolio1.jpg", "portfolio2.jpg");
@@ -1280,7 +1273,6 @@ class EngineerServiceTest {
                 .storeName(" 테스트 상호 ")
                 .storeAddress(" 서울시 테스트구 ")
                 .phone("010-1234-5678")
-                .phonePublic(true)
                 .engineerName(" 김기술 ")
                 .headline(" 주방 시공 전문 ");
     }
@@ -1310,7 +1302,6 @@ class EngineerServiceTest {
                 "기존 상호",
                 "기존 주소",
                 phone,
-                true,
                 engineerName,
                 headline
         );

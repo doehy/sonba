@@ -83,7 +83,6 @@ public class EngineerService {
                 trimToNull(request.getStoreName()),
                 trimToNull(request.getStoreAddress()),
                 normalizedPhone,
-                request.getPhonePublic(),
                 request.getEngineerName().trim(),
                 request.getHeadline().trim()
         );
@@ -135,7 +134,6 @@ public class EngineerService {
                 request.getEngineerName().trim(),
                 request.getHeadline().trim(),
                 normalizedPhone,
-                request.getPhonePublic(),
                 trimToNull(request.getProfileImage()),
                 trimToNull(request.getIntroduction()),
                 trimToNull(request.getStoreName()),

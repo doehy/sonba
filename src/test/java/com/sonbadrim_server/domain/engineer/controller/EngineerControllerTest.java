@@ -221,18 +221,6 @@ class EngineerControllerTest {
         }
 
         @Test
-        @DisplayName("전화번호 공개 여부를 선택하지 않으면 기술자를 등록할 수 없다")
-        void registerEngineer_phonePublicIsMissing() throws Exception {
-            // given
-            EngineerRequestDto request = createEngineerRequestBuilder()
-                    .phonePublic(null)
-                    .build();
-
-            // when & then
-            expectValidationFailure(request, "phonePublic");
-        }
-
-        @Test
         @DisplayName("자기소개를 300자를 초과하여 등록할 수 없다")
         void registerEngineer_introductionExceedsMaximum() throws Exception {
             // given
@@ -492,7 +480,6 @@ class EngineerControllerTest {
                     .storeName("기술 상사")
                     .storeAddress("서울특별시 강남구")
                     .phone("01012345678")
-                    .phonePublic(true)
                     .interested(true)
                     .portfolioImages(List.of("portfolio1.jpg", "portfolio2.jpg"))
                     .build();
@@ -814,7 +801,6 @@ class EngineerControllerTest {
                 .storeName("인테리어 종합 공사")
                 .storeAddress("뉴욕")
                 .phone("010-1234-5678")
-                .phonePublic(true)
                 .engineerName("김도현")
                 .headline("주방 시공 전문");
     }
