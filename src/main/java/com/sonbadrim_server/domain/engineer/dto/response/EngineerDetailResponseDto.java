@@ -20,7 +20,6 @@ public class EngineerDetailResponseDto {
     private String storeName;
     private String storeAddress;
     private String phone;
-    private boolean phonePublic;
     private boolean interested;
     private List<String> portfolioImages;
     private List<String> portfolioThumbnailImages;
@@ -48,7 +47,6 @@ public class EngineerDetailResponseDto {
                 .storeName(engineer.getStoreName())
                 .storeAddress(engineer.getStoreAddress())
                 .phone(engineer.getPhone())
-                .phonePublic(engineer.isPhonePublic())
                 .interested(interested)
                 .portfolioImages(portfolioImages)
                 .portfolioThumbnailImages(portfolioThumbnailImages)

@@ -45,9 +45,6 @@ public class EngineerRequestDto {
     )
     private String phone;
 
-    @NotNull(message = "전화번호 공개 여부는 필수입니다.")
-    private Boolean phonePublic;
-
     @NotBlank(message = "기술자 닉네임은 필수입니다.")
     @Size(max = 20, message = "기술자 닉네임은 20자 이하로 입력해주세요.")
     private String engineerName;

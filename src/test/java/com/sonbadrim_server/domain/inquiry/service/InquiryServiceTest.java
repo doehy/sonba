@@ -737,7 +737,6 @@ class InquiryServiceTest {
                 "기존 상호",
                 "기존 주소",
                 phone,
-                true,
                 "기술자",
                 "기술자 소개"
         ));

@@ -86,7 +86,6 @@ class EngineerRepositoryTest {
                     "테스트 상호",
                     "테스트 주소",
                     "01011112222",
-                    true,
                     "상세기술자",
                     "주방 시공 전문"
             ));
@@ -277,7 +276,6 @@ class EngineerRepositoryTest {
                 "테스트 상호",
                 "테스트 주소",
                 phone,
-                true,
                 engineerName,
                 headline
         ));

@@ -56,9 +56,6 @@ public class Engineer extends BaseTimeEntity {
     @Column(name = "phone", nullable = false, length = 20, unique = true)
     private String phone;
 
-    @Column(name = "phone_public", nullable = false)
-    private boolean phonePublic;
-
     @Column(name = "engineer_name", nullable = false, length = 20)
     private String engineerName;
 
@@ -79,7 +76,6 @@ public class Engineer extends BaseTimeEntity {
             String storeName,
             String storeAddress,
             String phone,
-            boolean phonePublic,
             String engineerName,
             String headline
     ) {
@@ -92,7 +88,6 @@ public class Engineer extends BaseTimeEntity {
         engineer.storeName = storeName;
         engineer.storeAddress = storeAddress;
         engineer.phone = phone;
-        engineer.phonePublic = phonePublic;
         engineer.engineerName = engineerName;
         engineer.headline = headline;
         return engineer;
@@ -102,7 +97,6 @@ public class Engineer extends BaseTimeEntity {
             String engineerName,
             String headline,
             String phone,
-            Boolean phonePublic,
             String profileImage,
             String introduction,
             String storeName,
@@ -112,7 +106,6 @@ public class Engineer extends BaseTimeEntity {
         this.engineerName = engineerName;
         this.headline = headline;
         this.phone = phone;
-        this.phonePublic = phonePublic;
         if (!Objects.equals(this.profileImage, profileImage)) {
             this.profileThumbnailImage = null;
         }
