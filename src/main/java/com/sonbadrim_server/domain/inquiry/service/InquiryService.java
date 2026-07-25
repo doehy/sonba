@@ -164,7 +164,10 @@ public class InquiryService {
 
         if (!pageMessages.isEmpty()) {
             Long lastMessageId = pageMessages.get(pageMessages.size() - 1).getInquiryMessageId();
-            inquiry.updateLastReadMessageId(currentUser.getUserId(), lastMessageId);
+            Long currentLastReadMessageId = inquiry.getLastReadMessageIdOf(currentUser.getUserId());
+            if (currentLastReadMessageId == null || lastMessageId > currentLastReadMessageId) {
+                inquiry.updateLastReadMessageId(currentUser.getUserId(), lastMessageId);
+            }
         }
 
         Long nextCursor = hasNext
