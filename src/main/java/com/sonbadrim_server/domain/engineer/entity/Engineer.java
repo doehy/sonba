@@ -30,8 +30,8 @@ public class Engineer extends BaseTimeEntity {
     @Column(name = "engineer_id")
     private Long engineerId;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false, unique = true)
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", unique = true)
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -62,6 +62,14 @@ public class Engineer extends BaseTimeEntity {
     @Column(name = "headline", length = 100)
     private String headline;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "registration_type", nullable = false, length = 30)
+    private EngineerRegistrationType registrationType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "claim_status", nullable = false, length = 30)
+    private EngineerClaimStatus claimStatus;
+
     @OneToMany(mappedBy = "engineer")
     private List<Portfolio> portfolios = new ArrayList<>();
 
@@ -90,7 +98,40 @@ public class Engineer extends BaseTimeEntity {
         engineer.phone = phone;
         engineer.engineerName = engineerName;
         engineer.headline = headline;
+        engineer.registrationType = EngineerRegistrationType.SELF_REGISTERED;
+        engineer.claimStatus = EngineerClaimStatus.APPROVED;
         return engineer;
+    }
+
+    public static Engineer createAdminCreated(
+            Region region,
+            String profileImage,
+            String introduction,
+            String storeName,
+            String storeAddress,
+            String phone,
+            String engineerName,
+            String headline
+    ) {
+        Engineer engineer = new Engineer();
+        engineer.user = null;
+        engineer.region = region;
+        engineer.profileImage = profileImage;
+        engineer.profileThumbnailImage = null;
+        engineer.introduction = introduction;
+        engineer.storeName = storeName;
+        engineer.storeAddress = storeAddress;
+        engineer.phone = phone;
+        engineer.engineerName = engineerName;
+        engineer.headline = headline;
+        engineer.registrationType = EngineerRegistrationType.ADMIN_CREATED;
+        engineer.claimStatus = EngineerClaimStatus.UNCLAIMED;
+        return engineer;
+    }
+
+    public void approveClaim(User user) {
+        this.user = user;
+        this.claimStatus = EngineerClaimStatus.APPROVED;
     }
 
     public void updateInfo(

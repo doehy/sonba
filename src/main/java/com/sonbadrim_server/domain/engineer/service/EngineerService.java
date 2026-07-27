@@ -218,7 +218,7 @@ public class EngineerService {
         Engineer engineer = engineerRepository.findById(engineerId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
 
-        if (!engineer.getUser().getUserId().equals(currentUser.getUserId())) {
+        if (!isOwnedBy(engineer, currentUser)) {
             throw new CustomException(ErrorCode.CANNOT_UNJOIN_ENGINEER);
         }
 
@@ -249,7 +249,7 @@ public class EngineerService {
         Engineer engineer = engineerRepository.findById(engineerId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
 
-        if (engineer.getUser().getUserId().equals(user.getUserId())) {
+        if (isOwnedBy(engineer, user)) {
             throw new CustomException(ErrorCode.CANNOT_INTEREST_OWN_ENGINEER);
         }
 
@@ -314,9 +314,15 @@ public class EngineerService {
     }
 
     private void validateOwner(Engineer engineer, User currentUser) {
-        if (!engineer.getUser().getUserId().equals(currentUser.getUserId())) {
+        if (!isOwnedBy(engineer, currentUser)) {
             throw new CustomException(ErrorCode.CANNOT_MODIFY_ENGINEER);
         }
+    }
+
+    private boolean isOwnedBy(Engineer engineer, User user) {
+        return engineer.getUser() != null
+                && user != null
+                && engineer.getUser().getUserId().equals(user.getUserId());
     }
 
     private List<Category> validateAndGetCategories(List<String> categoryNames) {

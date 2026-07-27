@@ -7,7 +7,9 @@ import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponse
 import com.sonbadrim_server.domain.engineer.dto.response.InterestedEngineerItemResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.PhoneDuplicateCheckResponseDto;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
+import com.sonbadrim_server.domain.engineer.entity.EngineerClaimStatus;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
+import com.sonbadrim_server.domain.engineer.entity.EngineerRegistrationType;
 import com.sonbadrim_server.domain.engineer.entity.InterestedEngineer;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
@@ -162,6 +164,8 @@ class EngineerServiceTest {
             assertThat(savedEngineer.getPhone()).isEqualTo("01012345678");
             assertThat(savedEngineer.getEngineerName()).isEqualTo("김기술");
             assertThat(savedEngineer.getHeadline()).isEqualTo("주방 시공 전문");
+            assertThat(savedEngineer.getRegistrationType()).isEqualTo(EngineerRegistrationType.SELF_REGISTERED);
+            assertThat(savedEngineer.getClaimStatus()).isEqualTo(EngineerClaimStatus.APPROVED);
 
             assertThat(savedCategories)
                     .extracting(engineerCategory -> engineerCategory.getCategory().getCategoryName())
@@ -1015,6 +1019,38 @@ class EngineerServiceTest {
             assertThat(result.isInterested()).isFalse();
             assertThat(result.getPortfolioImages())
                     .containsExactly(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2);
+        }
+
+        @Test
+        @DisplayName("수동 등록 기술자 상세 정보는 연결된 사용자 없이도 조회할 수 있다")
+        void getEngineerDetail_adminCreatedWithoutUser() {
+            // given
+            Engineer engineer = engineerRepository.save(Engineer.createAdminCreated(
+                    region,
+                    OLD_PROFILE_IMAGE,
+                    "기존 소개",
+                    "기존 상호",
+                    "기존 주소",
+                    "01011112222",
+                    "수동기술자",
+                    null
+            ));
+            Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
+            engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
+            entityManager.flush();
+            entityManager.clear();
+            SecurityContextHolder.clearContext();
+
+            // when
+            EngineerDetailResponseDto result =
+                    engineerService.getEngineerDetail(engineer.getEngineerId());
+
+            // then
+            assertThat(result.getEngineerId()).isEqualTo(engineer.getEngineerId());
+            assertThat(result.getUserId()).isNull();
+            assertThat(result.getEngineerName()).isEqualTo("수동기술자");
+            assertThat(result.getCategories()).containsExactly("주방");
+            assertThat(result.isInterested()).isFalse();
         }
 
         @Test

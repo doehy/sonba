@@ -32,7 +32,7 @@ public class EngineerDetailResponseDto {
     ) {
         return EngineerDetailResponseDto.builder()
                 .engineerId(engineer.getEngineerId())
-                .userId(engineer.getUser().getUserId())
+                .userId(engineer.getUser() == null ? null : engineer.getUser().getUserId())
                 .engineerName(engineer.getEngineerName())
                 .headline(engineer.getHeadline())
                 .profileImage(engineer.getProfileImage())

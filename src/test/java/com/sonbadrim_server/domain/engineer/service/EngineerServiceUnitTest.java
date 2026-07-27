@@ -107,4 +107,40 @@ class EngineerServiceUnitTest {
         then(interestedEngineerRepository).should()
                 .saveAndFlush(any(InterestedEngineer.class));
     }
+
+    @Test
+    @DisplayName("사용자와 연결되지 않은 수동 등록 기술자도 관심 등록할 수 있다")
+    void addInterestedEngineer_adminCreatedEngineer() {
+        // given
+        User user = User.builder()
+                .userId(1L)
+                .kakaoId(1000L)
+                .nickname("사용자")
+                .role(UserRole.USER)
+                .status(UserStatus.ACTIVE)
+                .build();
+        Engineer engineer = Engineer.createAdminCreated(
+                null,
+                null,
+                null,
+                null,
+                null,
+                "01012345678",
+                "수동기술자",
+                null
+        );
+        Long engineerId = 10L;
+
+        given(userService.getCurrentUser()).willReturn(user);
+        given(engineerRepository.findById(engineerId)).willReturn(Optional.of(engineer));
+        given(interestedEngineerRepository.existsByUser_UserIdAndEngineer_EngineerId(user.getUserId(), engineerId))
+                .willReturn(false);
+
+        // when & then
+        assertThatCode(() -> engineerService.addInterestedEngineer(engineerId))
+                .doesNotThrowAnyException();
+
+        then(interestedEngineerRepository).should()
+                .saveAndFlush(any(InterestedEngineer.class));
+    }
 }

@@ -3,7 +3,9 @@ package com.sonbadrim_server.domain.engineer.repository;
 import com.sonbadrim_server.domain.category.entity.Category;
 import com.sonbadrim_server.domain.category.repository.CategoryRepository;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
+import com.sonbadrim_server.domain.engineer.entity.EngineerClaimStatus;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
+import com.sonbadrim_server.domain.engineer.entity.EngineerRegistrationType;
 import com.sonbadrim_server.domain.region.entity.Region;
 import com.sonbadrim_server.domain.region.repository.RegionRepository;
 import com.sonbadrim_server.domain.user.entity.User;
@@ -118,6 +120,39 @@ class EngineerRepositoryTest {
                     )
                     .extracting(mapping -> mapping.getCategory().getCategoryName())
                     .containsExactlyInAnyOrder("주방", "타일");
+        }
+
+        @Test
+        @DisplayName("사용자와 연결되지 않은 수동 등록 기술자도 상세 조회할 수 있다")
+        void findDetailByEngineerId_adminCreatedWithoutUser() {
+            // given
+            Engineer engineer = engineerRepository.save(Engineer.createAdminCreated(
+                    region,
+                    "profile.jpg",
+                    "수동 등록 소개",
+                    "수동 상호",
+                    "수동 주소",
+                    "01099998888",
+                    "수동기술자",
+                    null
+            ));
+            engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
+
+            entityManager.flush();
+            entityManager.clear();
+
+            // when
+            Engineer foundEngineer = engineerRepository
+                    .findDetailByEngineerId(engineer.getEngineerId())
+                    .orElseThrow();
+
+            // then
+            assertThat(foundEngineer.getUser()).isNull();
+            assertThat(foundEngineer.getRegistrationType()).isEqualTo(EngineerRegistrationType.ADMIN_CREATED);
+            assertThat(foundEngineer.getClaimStatus()).isEqualTo(EngineerClaimStatus.UNCLAIMED);
+            assertThat(foundEngineer.getEngineerCategories())
+                    .extracting(mapping -> mapping.getCategory().getCategoryName())
+                    .containsExactly("주방");
         }
 
         @Test

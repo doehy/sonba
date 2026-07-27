@@ -26,7 +26,7 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long>, Engin
     @Query("""
     select distinct e
     from Engineer e
-    join fetch e.user u
+    left join fetch e.user u
     join fetch e.region r
     left join fetch e.engineerCategories ec
     left join fetch ec.category c
