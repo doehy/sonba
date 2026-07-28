@@ -34,6 +34,10 @@ public class Engineer extends BaseTimeEntity {
     @JoinColumn(name = "user_id", unique = true)
     private User user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "claim_requester_user_id")
+    private User claimRequester;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "region_id", nullable = false)
     private Region region;
@@ -131,7 +135,18 @@ public class Engineer extends BaseTimeEntity {
 
     public void approveClaim(User user) {
         this.user = user;
+        this.claimRequester = null;
         this.claimStatus = EngineerClaimStatus.APPROVED;
+    }
+
+    public void requestClaim(User requester) {
+        this.claimRequester = requester;
+        this.claimStatus = EngineerClaimStatus.REQUESTED;
+    }
+
+    public void rejectClaim() {
+        this.claimRequester = null;
+        this.claimStatus = EngineerClaimStatus.REJECTED;
     }
 
     public void updateInfo(

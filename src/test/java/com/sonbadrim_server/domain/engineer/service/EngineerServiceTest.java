@@ -1,6 +1,7 @@
 package com.sonbadrim_server.domain.engineer.service;
 
 import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
+import com.sonbadrim_server.domain.engineer.dto.response.EngineerClaimRequestResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
@@ -55,6 +56,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -1341,6 +1343,325 @@ class EngineerServiceTest {
     }
 
     @Nested
+    @DisplayName("기존 기술자 프로필 연결 요청")
+    class RequestEngineerClaim {
+
+        @Test
+        @DisplayName("사용자와 연결되지 않은 수동 등록 기술자 프로필에 연결을 요청할 수 있다")
+        void requestEngineerClaim_success() {
+            // given
+            Engineer engineer = engineerRepository.save(Engineer.createAdminCreated(
+                    region,
+                    OLD_PROFILE_IMAGE,
+                    "기존 소개",
+                    "기존 상호",
+                    "기존 주소",
+                    "01011112222",
+                    "수동기술자",
+                    null
+            ));
+
+            // when
+            engineerService.requestEngineerClaim(engineer.getEngineerId());
+            entityManager.flush();
+            entityManager.clear();
+
+            // then
+            Engineer requestedEngineer = engineerRepository.findById(engineer.getEngineerId())
+                    .orElseThrow();
+            assertThat(requestedEngineer.getClaimStatus()).isEqualTo(EngineerClaimStatus.REQUESTED);
+            assertThat(requestedEngineer.getClaimRequester().getUserId()).isEqualTo(currentUser.getUserId());
+            assertThat(requestedEngineer.getUser()).isNull();
+        }
+
+        @Test
+        @DisplayName("이미 본인이 연결 요청한 기술자 프로필에 다시 요청하면 성공 처리한다")
+        void requestEngineerClaim_alreadyRequestedBySameUser() {
+            // given
+            Engineer engineer = engineerRepository.save(Engineer.createAdminCreated(
+                    region,
+                    OLD_PROFILE_IMAGE,
+                    "기존 소개",
+                    "기존 상호",
+                    "기존 주소",
+                    "01011112222",
+                    "수동기술자",
+                    null
+            ));
+            engineer.requestClaim(currentUser);
+            entityManager.flush();
+            entityManager.clear();
+
+            // when & then
+            assertThatCode(() -> engineerService.requestEngineerClaim(engineer.getEngineerId()))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("다른 사용자가 이미 연결 요청 중인 기술자 프로필에는 요청할 수 없다")
+        void requestEngineerClaim_alreadyRequestedByOtherUser() {
+            // given
+            User anotherUser = saveUser(900000000002L, "다른사용자");
+            Engineer engineer = engineerRepository.save(Engineer.createAdminCreated(
+                    region,
+                    OLD_PROFILE_IMAGE,
+                    "기존 소개",
+                    "기존 상호",
+                    "기존 주소",
+                    "01011112222",
+                    "수동기술자",
+                    null
+            ));
+            engineer.requestClaim(anotherUser);
+            entityManager.flush();
+            entityManager.clear();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.requestEngineerClaim(engineer.getEngineerId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_CLAIM_ALREADY_REQUESTED);
+        }
+
+        @Test
+        @DisplayName("이미 사용자와 연결된 기술자 프로필에는 연결 요청할 수 없다")
+        void requestEngineerClaim_alreadyClaimed() {
+            // given
+            User engineerUser = saveUser(900000000002L, "기술자사용자");
+            Engineer engineer = saveEngineer(
+                    engineerUser,
+                    "01011112222",
+                    "기술자",
+                    "기술자 소개"
+            );
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.requestEngineerClaim(engineer.getEngineerId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_ALREADY_CLAIMED);
+        }
+
+        @Test
+        @DisplayName("이미 기술자 등록이 완료된 사용자는 기존 프로필 연결을 요청할 수 없다")
+        void requestEngineerClaim_currentUserAlreadyRegistered() {
+            // given
+            saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "내기술자",
+                    "내 소개"
+            );
+            Engineer manualEngineer = engineerRepository.save(Engineer.createAdminCreated(
+                    region,
+                    OLD_PROFILE_IMAGE,
+                    "기존 소개",
+                    "기존 상호",
+                    "기존 주소",
+                    "01033334444",
+                    "수동기술자",
+                    null
+            ));
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.requestEngineerClaim(manualEngineer.getEngineerId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_ALREADY_REGISTERED);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자 프로필에는 연결 요청할 수 없다")
+        void requestEngineerClaim_engineerNotFound() {
+            // when & then
+            assertThatThrownBy(() -> engineerService.requestEngineerClaim(999L))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("관리자 기술자 프로필 연결 요청 처리")
+    class AdminEngineerClaim {
+
+        @Test
+        @DisplayName("관리자는 연결 요청 목록을 조회할 수 있다")
+        void getEngineerClaimRequests_success() {
+            // given
+            User adminUser = saveAdminUser(900000000002L, "관리자");
+            User requester = saveUser(900000000003L, "요청자");
+            Engineer requestedEngineer = engineerRepository.save(Engineer.createAdminCreated(
+                    region,
+                    OLD_PROFILE_IMAGE,
+                    "기존 소개",
+                    "기존 상호",
+                    "기존 주소",
+                    "01011112222",
+                    "요청기술자",
+                    null
+            ));
+            requestedEngineer.requestClaim(requester);
+            engineerRepository.save(Engineer.createAdminCreated(
+                    region,
+                    OLD_PROFILE_IMAGE,
+                    "기존 소개",
+                    "기존 상호",
+                    "기존 주소",
+                    "01033334444",
+                    "미요청기술자",
+                    null
+            ));
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            // when
+            Page<EngineerClaimRequestResponseDto> result =
+                    engineerService.getEngineerClaimRequests(PageRequest.of(0, 20));
+
+            // then
+            assertThat(result.getContent()).singleElement()
+                    .satisfies(response -> {
+                        assertThat(response.getEngineerId()).isEqualTo(requestedEngineer.getEngineerId());
+                        assertThat(response.getEngineerName()).isEqualTo("요청기술자");
+                        assertThat(response.getPhone()).isEqualTo("01011112222");
+                        assertThat(response.getRequesterUserId()).isEqualTo(requester.getUserId());
+                        assertThat(response.getRequesterNickname()).isEqualTo("요청자");
+                        assertThat(response.getClaimStatus()).isEqualTo(EngineerClaimStatus.REQUESTED);
+                    });
+        }
+
+        @Test
+        @DisplayName("관리자가 연결 요청을 승인하면 기술자 프로필이 요청자와 연결된다")
+        void approveEngineerClaim_success() {
+            // given
+            User adminUser = saveAdminUser(900000000002L, "관리자");
+            User requester = saveUser(900000000003L, "요청자");
+            Engineer engineer = engineerRepository.save(Engineer.createAdminCreated(
+                    region,
+                    OLD_PROFILE_IMAGE,
+                    "기존 소개",
+                    "기존 상호",
+                    "기존 주소",
+                    "01011112222",
+                    "수동기술자",
+                    null
+            ));
+            engineer.requestClaim(requester);
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            // when
+            engineerService.approveEngineerClaim(engineer.getEngineerId());
+            entityManager.flush();
+            entityManager.clear();
+
+            // then
+            Engineer approvedEngineer = engineerRepository.findById(engineer.getEngineerId())
+                    .orElseThrow();
+            assertThat(approvedEngineer.getUser().getUserId()).isEqualTo(requester.getUserId());
+            assertThat(approvedEngineer.getClaimRequester()).isNull();
+            assertThat(approvedEngineer.getClaimStatus()).isEqualTo(EngineerClaimStatus.APPROVED);
+        }
+
+        @Test
+        @DisplayName("관리자가 연결 요청을 거절하면 요청자가 제거되고 거절 상태가 된다")
+        void rejectEngineerClaim_success() {
+            // given
+            User adminUser = saveAdminUser(900000000002L, "관리자");
+            User requester = saveUser(900000000003L, "요청자");
+            Engineer engineer = engineerRepository.save(Engineer.createAdminCreated(
+                    region,
+                    OLD_PROFILE_IMAGE,
+                    "기존 소개",
+                    "기존 상호",
+                    "기존 주소",
+                    "01011112222",
+                    "수동기술자",
+                    null
+            ));
+            engineer.requestClaim(requester);
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            // when
+            engineerService.rejectEngineerClaim(engineer.getEngineerId());
+            entityManager.flush();
+            entityManager.clear();
+
+            // then
+            Engineer rejectedEngineer = engineerRepository.findById(engineer.getEngineerId())
+                    .orElseThrow();
+            assertThat(rejectedEngineer.getUser()).isNull();
+            assertThat(rejectedEngineer.getClaimRequester()).isNull();
+            assertThat(rejectedEngineer.getClaimStatus()).isEqualTo(EngineerClaimStatus.REJECTED);
+        }
+
+        @Test
+        @DisplayName("관리자가 아니면 연결 요청 목록을 조회할 수 없다")
+        void getEngineerClaimRequests_notAdmin() {
+            // when & then
+            assertThatThrownBy(() -> engineerService.getEngineerClaimRequests(PageRequest.of(0, 20)))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("요청 대기 상태가 아닌 기술자 프로필은 승인할 수 없다")
+        void approveEngineerClaim_notRequested() {
+            // given
+            User adminUser = saveAdminUser(900000000002L, "관리자");
+            Engineer engineer = engineerRepository.save(Engineer.createAdminCreated(
+                    region,
+                    OLD_PROFILE_IMAGE,
+                    "기존 소개",
+                    "기존 상호",
+                    "기존 주소",
+                    "01011112222",
+                    "수동기술자",
+                    null
+            ));
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.approveEngineerClaim(engineer.getEngineerId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_CLAIM_NOT_REQUESTED);
+        }
+
+        @Test
+        @DisplayName("요청자가 이미 다른 기술자 프로필을 가지고 있으면 승인할 수 없다")
+        void approveEngineerClaim_requesterAlreadyRegistered() {
+            // given
+            User adminUser = saveAdminUser(900000000002L, "관리자");
+            User requester = saveUser(900000000003L, "요청자");
+            Engineer requestedEngineer = engineerRepository.save(Engineer.createAdminCreated(
+                    region,
+                    OLD_PROFILE_IMAGE,
+                    "기존 소개",
+                    "기존 상호",
+                    "기존 주소",
+                    "01011112222",
+                    "수동기술자",
+                    null
+            ));
+            requestedEngineer.requestClaim(requester);
+            saveEngineer(
+                    requester,
+                    "01033334444",
+                    "이미등록된기술자",
+                    "이미 등록"
+            );
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.approveEngineerClaim(requestedEngineer.getEngineerId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ENGINEER_ALREADY_REGISTERED);
+        }
+    }
+
+    @Nested
     @DisplayName("기술자 전화번호 중복 확인")
     class CheckPhoneDuplicate {
 
@@ -1499,6 +1820,17 @@ class EngineerServiceTest {
                 .kakaoId(kakaoId)
                 .nickname(nickname)
                 .role(UserRole.USER)
+                .status(UserStatus.ACTIVE)
+                .build();
+        return userRepository.save(user);
+    }
+
+    private User saveAdminUser(Long kakaoId, String nickname) {
+        User user = User.builder()
+                .region(region)
+                .kakaoId(kakaoId)
+                .nickname(nickname)
+                .role(UserRole.ADMIN)
                 .status(UserStatus.ACTIVE)
                 .build();
         return userRepository.save(user);

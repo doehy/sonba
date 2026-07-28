@@ -118,4 +118,11 @@ public class EngineerController {
         return ResponseEntity.ok(CommonResponse.success("관심 기술자에서 삭제되었습니다."));
     }
 
+    @Operation(summary = "기존 기술자 프로필 연결 요청", description = "수동 등록된 기술자 프로필을 현재 로그인 사용자 계정과 연결하도록 요청합니다.")
+    @PostMapping("/{engineerId}/claim")
+    public ResponseEntity<?> requestEngineerClaim(@PathVariable Long engineerId) {
+        engineerService.requestEngineerClaim(engineerId);
+        return ResponseEntity.ok(CommonResponse.success("기술자 프로필 연결 요청이 접수되었습니다."));
+    }
+
 }

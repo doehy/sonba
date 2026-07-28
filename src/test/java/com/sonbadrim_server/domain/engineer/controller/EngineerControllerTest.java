@@ -711,6 +711,68 @@ class EngineerControllerTest {
     }
 
     @Nested
+    @DisplayName("기존 기술자 프로필 연결 요청")
+    class RequestEngineerClaim {
+
+        @Test
+        @DisplayName("기존 기술자 프로필 연결을 요청할 수 있다")
+        void requestEngineerClaim_success() throws Exception {
+            // when & then
+            mockMvc.perform(post("/engineers/{engineerId}/claim", 7L))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data").value("기술자 프로필 연결 요청이 접수되었습니다."));
+
+            verify(engineerService).requestEngineerClaim(7L);
+        }
+
+        @Test
+        @DisplayName("이미 연결 요청이 진행 중인 기술자 프로필에는 요청할 수 없다")
+        void requestEngineerClaim_alreadyRequested() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.ENGINEER_CLAIM_ALREADY_REQUESTED))
+                    .given(engineerService)
+                    .requestEngineerClaim(7L);
+
+            // when & then
+            mockMvc.perform(post("/engineers/{engineerId}/claim", 7L))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("ENGINEER_CLAIM_ALREADY_REQUESTED"));
+        }
+
+        @Test
+        @DisplayName("이미 사용자와 연결된 기술자 프로필에는 요청할 수 없다")
+        void requestEngineerClaim_alreadyClaimed() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.ENGINEER_ALREADY_CLAIMED))
+                    .given(engineerService)
+                    .requestEngineerClaim(7L);
+
+            // when & then
+            mockMvc.perform(post("/engineers/{engineerId}/claim", 7L))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("ENGINEER_ALREADY_CLAIMED"));
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기술자 프로필에는 연결 요청할 수 없다")
+        void requestEngineerClaim_engineerNotFound() throws Exception {
+            // given
+            willThrow(new CustomException(ErrorCode.ENGINEER_NOT_FOUND))
+                    .given(engineerService)
+                    .requestEngineerClaim(999L);
+
+            // when & then
+            mockMvc.perform(post("/engineers/{engineerId}/claim", 999L))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("ENGINEER_NOT_FOUND"));
+        }
+    }
+
+    @Nested
     @DisplayName("기술자 전화번호 중복 확인")
     class CheckPhoneDuplicate {
 

@@ -1,8 +1,11 @@
 package com.sonbadrim_server.domain.engineer.repository;
 
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
+import com.sonbadrim_server.domain.engineer.entity.EngineerClaimStatus;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -16,6 +19,9 @@ public interface EngineerRepository extends JpaRepository<Engineer, Long>, Engin
     boolean existsByUser_UserId(Long userId);
 
     boolean existsByPhone(String phone);
+
+    @EntityGraph(attributePaths = {"claimRequester", "region"})
+    Page<Engineer> findByClaimStatusOrderByModifiedAtDesc(EngineerClaimStatus claimStatus, Pageable pageable);
 
     @Query("""
             select e

@@ -4,12 +4,14 @@ import com.sonbadrim_server.domain.category.entity.Category;
 import com.sonbadrim_server.domain.category.repository.CategoryRepository;
 import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
+import com.sonbadrim_server.domain.engineer.dto.response.EngineerClaimRequestResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.InterestedEngineerItemResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.PhoneDuplicateCheckResponseDto;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
+import com.sonbadrim_server.domain.engineer.entity.EngineerClaimStatus;
 import com.sonbadrim_server.domain.engineer.entity.InterestedEngineer;
 import com.sonbadrim_server.domain.engineer.repository.EngineerCategoryRepository;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
@@ -22,6 +24,7 @@ import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
 import com.sonbadrim_server.domain.region.entity.Region;
 import com.sonbadrim_server.domain.region.repository.RegionRepository;
 import com.sonbadrim_server.domain.user.entity.User;
+import com.sonbadrim_server.domain.user.entity.UserRole;
 import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
@@ -287,6 +290,66 @@ public class EngineerService {
         );
     }
 
+    public void requestEngineerClaim(Long engineerId) {
+        User currentUser = userService.getCurrentUser();
+
+        if (engineerRepository.existsByUser_UserId(currentUser.getUserId())) {
+            throw new CustomException(ErrorCode.ENGINEER_ALREADY_REGISTERED);
+        }
+
+        Engineer engineer = engineerRepository.findById(engineerId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+
+        if (engineer.getUser() != null || engineer.getClaimStatus() == EngineerClaimStatus.APPROVED) {
+            throw new CustomException(ErrorCode.ENGINEER_ALREADY_CLAIMED);
+        }
+
+        if (engineer.getClaimStatus() == EngineerClaimStatus.REQUESTED) {
+            if (isClaimRequestedBy(engineer, currentUser)) {
+                return;
+            }
+            throw new CustomException(ErrorCode.ENGINEER_CLAIM_ALREADY_REQUESTED);
+        }
+
+        engineer.requestClaim(currentUser);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EngineerClaimRequestResponseDto> getEngineerClaimRequests(Pageable pageable) {
+        validateAdmin(userService.getCurrentUser());
+
+        return engineerRepository
+                .findByClaimStatusOrderByModifiedAtDesc(EngineerClaimStatus.REQUESTED, pageable)
+                .map(EngineerClaimRequestResponseDto::from);
+    }
+
+    public void approveEngineerClaim(Long engineerId) {
+        validateAdmin(userService.getCurrentUser());
+
+        Engineer engineer = engineerRepository.findById(engineerId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+
+        validateClaimRequestPending(engineer);
+
+        User requester = engineer.getClaimRequester();
+        if (engineerRepository.existsByUser_UserId(requester.getUserId())) {
+            throw new CustomException(ErrorCode.ENGINEER_ALREADY_REGISTERED);
+        }
+
+        engineer.approveClaim(requester);
+    }
+
+    public void rejectEngineerClaim(Long engineerId) {
+        validateAdmin(userService.getCurrentUser());
+
+        Engineer engineer = engineerRepository.findById(engineerId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+
+        validateClaimRequestPending(engineer);
+
+        engineer.rejectClaim();
+    }
+
     /**
      * 기술자 전화번호 중복 여부를 확인한다.
      */
@@ -323,6 +386,28 @@ public class EngineerService {
         return engineer.getUser() != null
                 && user != null
                 && engineer.getUser().getUserId().equals(user.getUserId());
+    }
+
+    private boolean isClaimRequestedBy(Engineer engineer, User user) {
+        return engineer.getClaimRequester() != null
+                && user != null
+                && engineer.getClaimRequester().getUserId().equals(user.getUserId());
+    }
+
+    private void validateClaimRequestPending(Engineer engineer) {
+        if (engineer.getUser() != null || engineer.getClaimStatus() == EngineerClaimStatus.APPROVED) {
+            throw new CustomException(ErrorCode.ENGINEER_ALREADY_CLAIMED);
+        }
+
+        if (engineer.getClaimStatus() != EngineerClaimStatus.REQUESTED || engineer.getClaimRequester() == null) {
+            throw new CustomException(ErrorCode.ENGINEER_CLAIM_NOT_REQUESTED);
+        }
+    }
+
+    private void validateAdmin(User user) {
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
     }
 
     private List<Category> validateAndGetCategories(List<String> categoryNames) {

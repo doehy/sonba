@@ -43,6 +43,9 @@ public enum ErrorCode {
     CANNOT_MODIFY_ENGINEER(403,"ENGINEER_403_1", "기술자 정보를 수정할 권한이 없습니다."),
     CANNOT_UNJOIN_ENGINEER(403, "ENGINEER_403_2", "기술자 탈퇴할 권한이 없습니다."),
     CANNOT_INTEREST_OWN_ENGINEER(400, "ENGINEER_400_2", "본인을 관심 기술자로 등록할 수 없습니다."),
+    ENGINEER_ALREADY_CLAIMED(409, "ENGINEER_409_3", "이미 사용자와 연결된 기술자 프로필입니다."),
+    ENGINEER_CLAIM_ALREADY_REQUESTED(409, "ENGINEER_409_4", "이미 연결 요청이 진행 중인 기술자 프로필입니다."),
+    ENGINEER_CLAIM_NOT_REQUESTED(409, "ENGINEER_409_5", "연결 요청 대기 상태가 아닌 기술자 프로필입니다."),
 
     // Inquiry
     INQUIRY_NOT_FOUND(404, "INQUIRY_404_1", "문의방을 찾을 수 없습니다."),
