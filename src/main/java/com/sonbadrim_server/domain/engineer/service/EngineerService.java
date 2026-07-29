@@ -55,6 +55,8 @@ import java.util.stream.Collectors;
 @Transactional
 public class EngineerService {
 
+    private static final String ADMIN_CREATED_DEFAULT_INTRODUCTION = "상세 소개는 추후 보완될 예정입니다.";
+
     private final EngineerRepository engineerRepository;
     private final EngineerCategoryRepository engineerCategoryRepository;
     private final PortfolioRepository portfolioRepository;
@@ -100,6 +102,50 @@ public class EngineerService {
                 request.getEngineerName().trim(),
                 trimToNull(request.getHeadline())
         );
+
+        return saveEngineerWithRelations(engineer, categories, normalizedPortfolioImages, normalizedProfileImage);
+    }
+
+    /**
+     * 관리자가 수동으로 기술자 프로필을 등록한다.
+     * @return EngineerCreateResponse
+     */
+    public EngineerCreateResponse registerAdminCreatedEngineer(EngineerRequestDto request) {
+        validateAdmin(userService.getCurrentUser());
+
+        String normalizedPhone = normalizePhone(request.getPhone());
+        if (engineerRepository.existsByPhone(normalizedPhone)) {
+            throw new CustomException(ErrorCode.ENGINEER_PHONE_ALREADY_REGISTERED);
+        }
+
+        Region region = regionRepository.findById(request.getRegionId())
+                .orElseThrow(() -> new CustomException(ErrorCode.REGION_NOT_FOUND));
+
+        List<Category> categories = validateAndGetCategories(request.getCategories());
+        List<String> normalizedPortfolioImages =
+                validateAndNormalizePortfolioImages(request.getPortfolioImages());
+        String normalizedProfileImage = imagePolicyValidator.validateProfileImageUrl(request.getProfileImage());
+
+        Engineer engineer = Engineer.createAdminCreated(
+                region,
+                normalizedProfileImage,
+                ADMIN_CREATED_DEFAULT_INTRODUCTION,
+                trimToNull(request.getStoreName()),
+                trimToNull(request.getStoreAddress()),
+                normalizedPhone,
+                request.getEngineerName().trim(),
+                trimToNull(request.getHeadline())
+        );
+
+        return saveEngineerWithRelations(engineer, categories, normalizedPortfolioImages, normalizedProfileImage);
+    }
+
+    private EngineerCreateResponse saveEngineerWithRelations(
+            Engineer engineer,
+            List<Category> categories,
+            List<String> normalizedPortfolioImages,
+            String normalizedProfileImage
+    ) {
         engineerRepository.save(engineer);
 
         List<EngineerCategory> mappings = categories.stream()
@@ -130,6 +176,23 @@ public class EngineerService {
 
         validateOwner(engineer, currentUser);
 
+        updateEngineerInfo(engineer, request);
+    }
+
+    /**
+     * 관리자가 기술자 정보를 수정한다.
+     * @return void
+     */
+    public void updateEngineerByAdmin(Long engineerId, EngineerRequestDto request) {
+        validateAdmin(userService.getCurrentUser());
+
+        Engineer engineer = engineerRepository.findById(engineerId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+
+        updateEngineerInfo(engineer, request);
+    }
+
+    private void updateEngineerInfo(Engineer engineer, EngineerRequestDto request) {
         Region region = regionRepository.findById(request.getRegionId())
                 .orElseThrow(() -> new CustomException(ErrorCode.REGION_NOT_FOUND));
 
@@ -225,11 +288,30 @@ public class EngineerService {
             throw new CustomException(ErrorCode.CANNOT_UNJOIN_ENGINEER);
         }
 
+        deleteEngineerWithRelations(engineer);
+    }
+
+    /**
+     * 관리자가 기술자 정보를 삭제한다.
+     * @return void
+     */
+    public void deleteEngineerByAdmin(Long engineerId) {
+        validateAdmin(userService.getCurrentUser());
+
+        Engineer engineer = engineerRepository.findById(engineerId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
+
+        deleteEngineerWithRelations(engineer);
+    }
+
+    private void deleteEngineerWithRelations(Engineer engineer) {
         interestedEngineerRepository.deleteAllByEngineer(engineer);
         engineerCategoryRepository.deleteAllByEngineer(engineer);
         portfolioRepository.deleteAllByEngineer(engineer);
 
-        currentUser.clearEngineer();
+        if (engineer.getUser() != null) {
+            engineer.getUser().clearEngineer();
+        }
         engineerRepository.delete(engineer);
     }
 
@@ -366,7 +448,9 @@ public class EngineerService {
         Engineer engineer = engineerRepository.findById(engineerId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
         User currentUser = userService.getCurrentUser();
-        validateOwner(engineer, currentUser);
+        if (currentUser.getRole() != UserRole.ADMIN) {
+            validateOwner(engineer, currentUser);
+        }
 
         boolean duplicated = engineerRepository.existsByPhoneAndEngineerIdNot(
                 normalizedPhone,

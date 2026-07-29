@@ -487,6 +487,85 @@ class EngineerServiceTest {
     }
 
     @Nested
+    @DisplayName("관리자 기술자 등록")
+    class RegisterAdminCreatedEngineer {
+
+        @Test
+        @DisplayName("관리자는 사용자와 연결되지 않은 기술자 프로필을 등록할 수 있다")
+        void registerAdminCreatedEngineer_success() {
+            // given
+            User adminUser = saveAdminUser(900000000010L, "관리자");
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            EngineerRequestDto request = createRequestBuilder()
+                    .introduction(" ")
+                    .build();
+
+            // when
+            EngineerCreateResponse response = engineerService.registerAdminCreatedEngineer(request);
+
+            // then
+            Engineer savedEngineer = engineerRepository.findById(response.getEngineerId())
+                    .orElseThrow();
+            List<EngineerCategory> savedCategories =
+                    engineerCategoryRepository.findByEngineer_EngineerIdIn(List.of(savedEngineer.getEngineerId()));
+            List<Portfolio> savedPortfolios =
+                    portfolioRepository.findByEngineer_EngineerId(savedEngineer.getEngineerId());
+
+            assertThat(savedEngineer.getUser()).isNull();
+            assertThat(savedEngineer.getRegion().getRegionId()).isEqualTo(region.getRegionId());
+            assertThat(savedEngineer.getProfileImage()).isEqualTo(PROFILE_IMAGE);
+            assertThat(savedEngineer.getIntroduction()).isEqualTo("상세 소개는 추후 보완될 예정입니다.");
+            assertThat(savedEngineer.getPhone()).isEqualTo("01012345678");
+            assertThat(savedEngineer.getEngineerName()).isEqualTo("김기술");
+            assertThat(savedEngineer.getRegistrationType()).isEqualTo(EngineerRegistrationType.ADMIN_CREATED);
+            assertThat(savedEngineer.getClaimStatus()).isEqualTo(EngineerClaimStatus.UNCLAIMED);
+
+            assertThat(savedCategories)
+                    .extracting(engineerCategory -> engineerCategory.getCategory().getCategoryName())
+                    .containsExactlyInAnyOrder("주방", "타일");
+            assertThat(savedPortfolios)
+                    .extracting(Portfolio::getPortfolioImage)
+                    .containsExactly(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2);
+        }
+
+        @Test
+        @DisplayName("관리자가 아니면 수동 기술자 프로필을 등록할 수 없다")
+        void registerAdminCreatedEngineer_forbidden() {
+            // given
+            EngineerRequestDto request = createValidRequest();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.registerAdminCreatedEngineer(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+
+            assertThat(engineerRepository.count()).isZero();
+        }
+
+        @Test
+        @DisplayName("관리자 등록 시 자기소개 입력값이 있어도 기본 문구로 저장한다")
+        void registerAdminCreatedEngineer_usesDefaultIntroduction() {
+            // given
+            User adminUser = saveAdminUser(900000000010L, "관리자");
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            EngineerRequestDto request = createRequestBuilder()
+                    .introduction(" 꼼꼼하게 시공합니다. ")
+                    .build();
+
+            // when
+            EngineerCreateResponse response = engineerService.registerAdminCreatedEngineer(request);
+
+            // then
+            Engineer savedEngineer = engineerRepository.findById(response.getEngineerId())
+                    .orElseThrow();
+            assertThat(savedEngineer.getIntroduction()).isEqualTo("상세 소개는 추후 보완될 예정입니다.");
+        }
+    }
+
+    @Nested
     @DisplayName("기술자 수정")
     class UpdateEngineer {
 
@@ -873,6 +952,85 @@ class EngineerServiceTest {
     }
 
     @Nested
+    @DisplayName("관리자 기술자 수정")
+    class UpdateEngineerByAdmin {
+
+        @Test
+        @DisplayName("관리자는 다른 사용자의 기술자 정보를 수정할 수 있다")
+        void updateEngineerByAdmin_success() {
+            // given
+            User owner = saveUser(900000000002L, "기술자소유자");
+            Engineer engineer = saveEngineer(
+                    owner,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
+            engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
+            portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
+
+            User adminUser = saveAdminUser(900000000010L, "관리자");
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            EngineerRequestDto request = createRequestBuilder()
+                    .categories(List.of("타일"))
+                    .portfolioImages(List.of(NEW_PORTFOLIO_IMAGE))
+                    .profileImage(NEW_PROFILE_IMAGE)
+                    .introduction(" 관리자 수정 소개 ")
+                    .phone("010-2222-3333")
+                    .engineerName(" 관리자수정기술자 ")
+                    .headline(" 관리자 수정 짧은 소개 ")
+                    .build();
+
+            // when
+            engineerService.updateEngineerByAdmin(engineer.getEngineerId(), request);
+
+            // then
+            Engineer updatedEngineer = engineerRepository.findById(engineer.getEngineerId())
+                    .orElseThrow();
+            List<EngineerCategory> updatedCategories =
+                    engineerCategoryRepository.findByEngineer_EngineerIdIn(List.of(engineer.getEngineerId()));
+            List<Portfolio> updatedPortfolios =
+                    portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId());
+
+            assertThat(updatedEngineer.getUser().getUserId()).isEqualTo(owner.getUserId());
+            assertThat(updatedEngineer.getEngineerName()).isEqualTo("관리자수정기술자");
+            assertThat(updatedEngineer.getHeadline()).isEqualTo("관리자 수정 짧은 소개");
+            assertThat(updatedEngineer.getPhone()).isEqualTo("01022223333");
+            assertThat(updatedEngineer.getProfileImage()).isEqualTo(NEW_PROFILE_IMAGE);
+            assertThat(updatedEngineer.getIntroduction()).isEqualTo("관리자 수정 소개");
+            assertThat(updatedCategories)
+                    .extracting(mapping -> mapping.getCategory().getCategoryName())
+                    .containsExactly("타일");
+            assertThat(updatedPortfolios)
+                    .extracting(Portfolio::getPortfolioImage)
+                    .containsExactly(NEW_PORTFOLIO_IMAGE);
+        }
+
+        @Test
+        @DisplayName("관리자가 아니면 관리자 수정 API로 기술자 정보를 수정할 수 없다")
+        void updateEngineerByAdmin_forbidden() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.updateEngineerByAdmin(
+                    engineer.getEngineerId(),
+                    createValidRequest()
+            ))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    @Nested
     @DisplayName("기술자 목록 조회")
     class GetEngineerList {
 
@@ -971,6 +1129,62 @@ class EngineerServiceTest {
             // then
             assertThat(result.getContent()).isEmpty();
             assertThat(result.hasNext()).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("관리자 기술자 삭제")
+    class DeleteEngineerByAdmin {
+
+        @Test
+        @DisplayName("관리자는 다른 사용자의 기술자 정보와 연결된 데이터를 삭제할 수 있다")
+        void deleteEngineerByAdmin_success() {
+            // given
+            User owner = saveUser(900000000002L, "기술자소유자");
+            Engineer engineer = saveEngineer(
+                    owner,
+                    "01011112222",
+                    "삭제기술자",
+                    "삭제 소개"
+            );
+            Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
+            engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
+            portfolioRepository.save(Portfolio.create(engineer, imageUrl("portfolio.jpg")));
+            User interestedUser = saveUser(900000000003L, "관심사용자");
+            interestedEngineerRepository.save(InterestedEngineer.create(interestedUser, engineer));
+
+            User adminUser = saveAdminUser(900000000010L, "관리자");
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            // when
+            engineerService.deleteEngineerByAdmin(engineer.getEngineerId());
+            entityManager.flush();
+
+            // then
+            assertThat(engineerRepository.findById(engineer.getEngineerId())).isEmpty();
+            assertThat(engineerCategoryRepository.count()).isZero();
+            assertThat(portfolioRepository.count()).isZero();
+            assertThat(interestedEngineerRepository.count()).isZero();
+        }
+
+        @Test
+        @DisplayName("관리자가 아니면 관리자 삭제 API로 기술자 정보를 삭제할 수 없다")
+        void deleteEngineerByAdmin_forbidden() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "삭제기술자",
+                    "삭제 소개"
+            );
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.deleteEngineerByAdmin(engineer.getEngineerId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+
+            assertThat(engineerRepository.findById(engineer.getEngineerId())).isPresent();
         }
     }
 
@@ -1776,6 +1990,31 @@ class EngineerServiceTest {
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.CANNOT_MODIFY_ENGINEER);
+        }
+
+        @Test
+        @DisplayName("관리자는 다른 사용자의 기술자를 제외하여 전화번호 중복 여부를 확인할 수 있다")
+        void checkPhoneDuplicate_adminCanExcludeAnyEngineer() {
+            // given
+            User owner = saveUser(900000000002L, "기술자소유자");
+            Engineer engineer = saveEngineer(
+                    owner,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            User adminUser = saveAdminUser(900000000010L, "관리자");
+            given(userService.getCurrentUser()).willReturn(adminUser);
+
+            // when
+            PhoneDuplicateCheckResponseDto result =
+                    engineerService.checkPhoneDuplicate(
+                            "010-1111-2222",
+                            engineer.getEngineerId()
+                    );
+
+            // then
+            assertThat(result.isDuplicated()).isFalse();
         }
     }
 

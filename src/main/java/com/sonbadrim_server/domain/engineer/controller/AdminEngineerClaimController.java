@@ -31,7 +31,7 @@ public class AdminEngineerClaimController {
 
     @Operation(summary = "기술자 프로필 연결 요청 목록 조회", description = "관리자가 처리해야 할 기술자 프로필 연결 요청 목록을 조회합니다.")
     @GetMapping
-    public ResponseEntity<CommonResponse<Page<EngineerClaimRequestResponseDto>>> getEngineerClaimRequests(
+    public ResponseEntity<?> getEngineerClaimRequests(
             @RequestParam(name = "page", defaultValue = "0")
             @Min(value = 0, message = "페이지 번호는 0 이상이어야 합니다.")
             int page,
@@ -47,14 +47,14 @@ public class AdminEngineerClaimController {
 
     @Operation(summary = "기술자 프로필 연결 요청 승인", description = "관리자가 기술자 프로필 연결 요청을 승인합니다.")
     @PostMapping("/{engineerId}/approve")
-    public ResponseEntity<CommonResponse<Void>> approveEngineerClaim(@PathVariable Long engineerId) {
+    public ResponseEntity<?> approveEngineerClaim(@PathVariable Long engineerId) {
         engineerService.approveEngineerClaim(engineerId);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
 
     @Operation(summary = "기술자 프로필 연결 요청 거절", description = "관리자가 기술자 프로필 연결 요청을 거절합니다.")
     @PostMapping("/{engineerId}/reject")
-    public ResponseEntity<CommonResponse<Void>> rejectEngineerClaim(@PathVariable Long engineerId) {
+    public ResponseEntity<?> rejectEngineerClaim(@PathVariable Long engineerId) {
         engineerService.rejectEngineerClaim(engineerId);
         return ResponseEntity.ok(CommonResponse.success(null));
     }
