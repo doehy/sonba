@@ -84,6 +84,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 writeErrorResponse(response, ErrorCode.USER_WITHDRAWN);
                 return;
             }
+            if (user.getStatus() == UserStatus.SUSPENDED && !isLogoutRequest(request)) {
+                writeErrorResponse(response, ErrorCode.USER_SUSPENDED);
+                return;
+            }
 
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(

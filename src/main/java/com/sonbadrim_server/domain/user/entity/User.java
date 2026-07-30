@@ -106,6 +106,14 @@ public class User extends BaseTimeEntity {
         this.status = UserStatus.ACTIVE;
     }
 
+    public void suspend() {
+        this.status = UserStatus.SUSPENDED;
+    }
+
+    public void activate() {
+        this.status = UserStatus.ACTIVE;
+    }
+
     public void clearKakaoAccessToken() {
         this.kakaoAccessToken = null;
     }

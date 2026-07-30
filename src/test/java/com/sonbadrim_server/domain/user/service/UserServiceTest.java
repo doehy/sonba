@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
@@ -125,6 +126,20 @@ class UserServiceTest {
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.USER_WITHDRAWN);
         }
+
+        @Test
+        @DisplayName("정지된 사용자는 카카오 재로그인을 할 수 없다")
+        void processKakaoLogin_rejectSuspendedUser() {
+            // given
+            User user = saveUser(900000000014L, UserStatus.SUSPENDED, "old-token");
+            Map<String, Object> kakaoUserInfo = Map.of("id", user.getKakaoId());
+
+            // when & then
+            assertThatThrownBy(() -> userService.processKakaoLogin(kakaoUserInfo, "new-token"))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.USER_SUSPENDED);
+        }
     }
 
     @Nested
@@ -186,6 +201,23 @@ class UserServiceTest {
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.UNAUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("정지된 사용자는 refresh token으로 토큰을 재발급할 수 없다")
+        void reissueTokenPair_rejectSuspendedUser() {
+            // given
+            User user = saveUser(900000000015L, UserStatus.ACTIVE, "kakao-token");
+            Map<String, String> tokens = userService.generateTokenPair(user);
+            user.suspend();
+            entityManager.flush();
+            entityManager.clear();
+
+            // when & then
+            assertThatThrownBy(() -> userService.reissueTokenPair(tokens.get("refreshToken")))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.USER_SUSPENDED);
         }
 
         @Test
@@ -277,11 +309,177 @@ class UserServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("관리자 유저 상태 관리")
+    class AdminUserManagement {
+
+        @Test
+        @DisplayName("관리자는 유저 목록을 조회할 수 있다")
+        void getAdminUsers_success() {
+            // given
+            User admin = saveUser(900000000026L, UserStatus.ACTIVE, "admin-token", UserRole.ADMIN);
+            User target = saveUser(900000000027L, UserStatus.ACTIVE, "target-token");
+            setAuthenticatedUser(admin);
+
+            // when
+            var response = userService.getAdminUsers(null, PageRequest.of(0, 100));
+
+            // then
+            assertThat(response.getContent())
+                    .anySatisfy(user -> {
+                        assertThat(user.getUserId()).isEqualTo(target.getUserId());
+                        assertThat(user.getNickname()).isEqualTo(target.getNickname());
+                        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+                        assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
+                        assertThat(user.isEngineerRegistered()).isFalse();
+                    });
+        }
+
+        @Test
+        @DisplayName("관리자가 아니면 유저 목록을 조회할 수 없다")
+        void getAdminUsers_forbidden() {
+            // given
+            User user = saveUser(900000000028L, UserStatus.ACTIVE, "user-token");
+            setAuthenticatedUser(user);
+
+            // when & then
+            assertThatThrownBy(() -> userService.getAdminUsers(null, PageRequest.of(0, 20)))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("관리자는 userId로 유저를 검색할 수 있다")
+        void getAdminUsers_searchByUserId() {
+            // given
+            User admin = saveUser(900000000029L, UserStatus.ACTIVE, "admin-token", UserRole.ADMIN);
+            User target = saveUser(900000000030L, UserStatus.ACTIVE, "target-token");
+            saveUser(900000000031L, UserStatus.ACTIVE, "other-token");
+            setAuthenticatedUser(admin);
+
+            // when
+            var response = userService.getAdminUsers(target.getUserId().toString(), PageRequest.of(0, 20));
+
+            // then
+            assertThat(response.getContent())
+                    .extracting("userId")
+                    .containsExactly(target.getUserId());
+        }
+
+        @Test
+        @DisplayName("관리자는 닉네임으로 유저를 검색할 수 있다")
+        void getAdminUsers_searchByNickname() {
+            // given
+            User admin = saveUser(900000000032L, UserStatus.ACTIVE, "admin-token", UserRole.ADMIN);
+            User target = saveUser(900000000033L, UserStatus.ACTIVE, "target-token", UserRole.USER, "검색대상");
+            saveUser(900000000034L, UserStatus.ACTIVE, "other-token", UserRole.USER, "다른유저");
+            setAuthenticatedUser(admin);
+
+            // when
+            var response = userService.getAdminUsers("검색", PageRequest.of(0, 20));
+
+            // then
+            assertThat(response.getContent())
+                    .extracting("nickname")
+                    .contains(target.getNickname())
+                    .doesNotContain("다른유저");
+        }
+
+        @Test
+        @DisplayName("관리자는 ACTIVE 사용자를 일시 정지할 수 있다")
+        void suspendUserByAdmin_success() {
+            // given
+            User admin = saveUser(900000000016L, UserStatus.ACTIVE, "admin-token", UserRole.ADMIN);
+            User target = saveUser(900000000017L, UserStatus.ACTIVE, "target-token");
+            userService.generateTokenPair(target);
+            setAuthenticatedUser(admin);
+
+            // when
+            userService.suspendUserByAdmin(target.getUserId());
+
+            // then
+            assertThat(target.getStatus()).isEqualTo(UserStatus.SUSPENDED);
+            entityManager.flush();
+            entityManager.clear();
+            assertThat(refreshTokenRepository.findAll())
+                    .allSatisfy(refreshToken -> assertThat(refreshToken.isRevoked()).isTrue());
+        }
+
+        @Test
+        @DisplayName("관리자는 SUSPENDED 사용자의 정지를 해제할 수 있다")
+        void activateUserByAdmin_success() {
+            // given
+            User admin = saveUser(900000000018L, UserStatus.ACTIVE, "admin-token", UserRole.ADMIN);
+            User target = saveUser(900000000019L, UserStatus.SUSPENDED, "target-token");
+            setAuthenticatedUser(admin);
+
+            // when
+            userService.activateUserByAdmin(target.getUserId());
+
+            // then
+            assertThat(target.getStatus()).isEqualTo(UserStatus.ACTIVE);
+        }
+
+        @Test
+        @DisplayName("관리자가 아니면 사용자를 일시 정지할 수 없다")
+        void suspendUserByAdmin_forbidden() {
+            // given
+            User user = saveUser(900000000020L, UserStatus.ACTIVE, "user-token");
+            User target = saveUser(900000000021L, UserStatus.ACTIVE, "target-token");
+            setAuthenticatedUser(user);
+
+            // when & then
+            assertThatThrownBy(() -> userService.suspendUserByAdmin(target.getUserId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("탈퇴한 사용자는 일시 정지할 수 없다")
+        void suspendUserByAdmin_rejectWithdrawnUser() {
+            // given
+            User admin = saveUser(900000000022L, UserStatus.ACTIVE, "admin-token", UserRole.ADMIN);
+            User target = saveUser(900000000023L, UserStatus.WITHDRAWN, "target-token");
+            setAuthenticatedUser(admin);
+
+            // when & then
+            assertThatThrownBy(() -> userService.suspendUserByAdmin(target.getUserId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.USER_WITHDRAWN);
+        }
+
+        @Test
+        @DisplayName("GUEST 사용자는 정지 해제로 ACTIVE 상태가 될 수 없다")
+        void activateUserByAdmin_rejectGuestUser() {
+            // given
+            User admin = saveUser(900000000024L, UserStatus.ACTIVE, "admin-token", UserRole.ADMIN);
+            User target = saveUser(900000000025L, UserStatus.GUEST, "target-token");
+            setAuthenticatedUser(admin);
+
+            // when & then
+            assertThatThrownBy(() -> userService.activateUserByAdmin(target.getUserId()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.USER_INVALID_STATUS);
+        }
+    }
+
     private User saveUser(Long kakaoId, UserStatus status, String kakaoAccessToken) {
+        return saveUser(kakaoId, status, kakaoAccessToken, UserRole.USER);
+    }
+
+    private User saveUser(Long kakaoId, UserStatus status, String kakaoAccessToken, UserRole role) {
+        return saveUser(kakaoId, status, kakaoAccessToken, role, "테스트유저");
+    }
+
+    private User saveUser(Long kakaoId, UserStatus status, String kakaoAccessToken, UserRole role, String nickname) {
         User user = User.builder()
                 .kakaoId(kakaoId)
-                .nickname("테스트유저")
-                .role(UserRole.USER)
+                .nickname(nickname)
+                .role(role)
                 .status(status)
                 .kakaoAccessToken(kakaoAccessToken)
                 .build();

@@ -5,7 +5,9 @@ import com.sonbadrim_server.domain.user.entity.UserStatus;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +21,35 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByStatus(UserStatus status);
 
     long countByStatus(UserStatus status);
+
+    @EntityGraph(attributePaths = {"engineer"})
+    @Query("""
+            select u
+            from User u
+            """)
+    Page<User> findAllForAdmin(Pageable pageable);
+
+    @EntityGraph(attributePaths = {"engineer"})
+    @Query("""
+            select u
+            from User u
+            where u.userId = :userId
+            """)
+    Page<User> findByUserIdForAdmin(
+            @Param("userId") Long userId,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"engineer"})
+    @Query("""
+            select u
+            from User u
+            where lower(u.nickname) like lower(concat('%', :nicknameKeyword, '%'))
+            """)
+    Page<User> searchByNicknameForAdmin(
+            @Param("nicknameKeyword") String nicknameKeyword,
+            Pageable pageable
+    );
 
     @Query("""
             select u.userId

@@ -8,6 +8,7 @@ import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.entity.RefreshToken;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
 import com.sonbadrim_server.domain.user.dto.request.UpdateUserProfileRequestDto;
+import com.sonbadrim_server.domain.user.dto.response.AdminUserResponseDto;
 import com.sonbadrim_server.domain.user.dto.response.EngineerRegistrationStatusResponseDto;
 import com.sonbadrim_server.domain.user.dto.response.UserProfileResponseDto;
 import com.sonbadrim_server.domain.user.repository.RefreshTokenRepository;
@@ -21,6 +22,8 @@ import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -96,6 +99,9 @@ public class UserService {
             // 탈퇴한 사용자(WITHDRAWN)는 재로그인 금지
             if (UserStatus.WITHDRAWN.equals(user.getStatus())) {
                 throw new CustomException(ErrorCode.USER_WITHDRAWN);
+            }
+            if (UserStatus.SUSPENDED.equals(user.getStatus())) {
+                throw new CustomException(ErrorCode.USER_SUSPENDED);
             }
 
             // 카카오 액세스 토큰 업데이트
@@ -212,6 +218,9 @@ public class UserService {
         if (UserStatus.WITHDRAWN.equals(user.getStatus())) {
             throw new CustomException(ErrorCode.USER_WITHDRAWN);
         }
+        if (UserStatus.SUSPENDED.equals(user.getStatus())) {
+            throw new CustomException(ErrorCode.USER_SUSPENDED);
+        }
 
         String refreshTokenHash = hashRefreshToken(refreshToken);
         RefreshToken storedToken = refreshTokenRepository.findValidToken(userId, refreshTokenHash, LocalDateTime.now())
@@ -319,6 +328,83 @@ public class UserService {
         refreshTokenRepository.revokeAllActiveByUserId(user.getUserId(), LocalDateTime.now());
         user.withdraw();
         userRepository.save(user);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AdminUserResponseDto> getAdminUsers(String keyword, Pageable pageable) {
+        validateAdmin(getCurrentUser());
+        String normalizedKeyword = normalizeAdminUserSearchKeyword(keyword);
+        Page<User> users;
+        if (normalizedKeyword == null) {
+            users = userRepository.findAllForAdmin(pageable);
+        } else if (isUserIdKeyword(normalizedKeyword)) {
+            users = userRepository.findByUserIdForAdmin(Long.valueOf(normalizedKeyword), pageable);
+        } else {
+            users = userRepository.searchByNicknameForAdmin(normalizedKeyword, pageable);
+        }
+
+        return users
+                .map(AdminUserResponseDto::from);
+    }
+
+    private String normalizeAdminUserSearchKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String trimmedKeyword = keyword.trim();
+        return trimmedKeyword.isEmpty() ? null : trimmedKeyword;
+    }
+
+    private boolean isUserIdKeyword(String keyword) {
+        try {
+            Long.parseLong(keyword);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    public void suspendUserByAdmin(Long userId) {
+        validateAdmin(getCurrentUser());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        if (UserStatus.WITHDRAWN.equals(user.getStatus())) {
+            throw new CustomException(ErrorCode.USER_WITHDRAWN);
+        }
+        if (UserStatus.SUSPENDED.equals(user.getStatus())) {
+            return;
+        }
+        if (!UserStatus.ACTIVE.equals(user.getStatus())) {
+            throw new CustomException(ErrorCode.USER_INVALID_STATUS);
+        }
+
+        user.suspend();
+        refreshTokenRepository.revokeAllActiveByUserId(user.getUserId(), LocalDateTime.now());
+    }
+
+    public void activateUserByAdmin(Long userId) {
+        validateAdmin(getCurrentUser());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        if (UserStatus.WITHDRAWN.equals(user.getStatus())) {
+            throw new CustomException(ErrorCode.USER_WITHDRAWN);
+        }
+        if (UserStatus.ACTIVE.equals(user.getStatus())) {
+            return;
+        }
+        if (!UserStatus.SUSPENDED.equals(user.getStatus())) {
+            throw new CustomException(ErrorCode.USER_INVALID_STATUS);
+        }
+
+        user.activate();
+    }
+
+    private void validateAdmin(User user) {
+        if (!UserRole.ADMIN.equals(user.getRole())) {
+            throw new CustomException(ErrorCode.FORBIDDEN);
+        }
     }
 
     private void rotateRefreshToken(User user, String refreshToken) {

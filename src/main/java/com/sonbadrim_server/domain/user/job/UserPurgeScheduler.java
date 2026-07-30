@@ -20,7 +20,7 @@ public class UserPurgeScheduler {
 
     private final UserRepository userRepository;
 
-    @Value("${user.withdraw-retention-days:365}")
+    @Value("${user.withdraw-retention-days:90}")
     private long withdrawRetentionDays;
 
     /**

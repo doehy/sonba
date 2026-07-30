@@ -27,7 +27,9 @@ public enum ErrorCode {
     // User
     USER_NOT_FOUND(404, "USER_404_1", "유저를 찾을 수 없습니다."),
     USER_WITHDRAWN(403, "USER_403_1", "탈퇴한 사용자입니다."),
-    SIGNUP_FORBIDDEN(403, "USER_403_2", "회원가입 대상 사용자가 아닙니다."),
+    USER_SUSPENDED(403, "USER_403_2", "정지된 사용자입니다."),
+    SIGNUP_FORBIDDEN(403, "USER_403_3", "회원가입 대상 사용자가 아닙니다."),
+    USER_INVALID_STATUS(400, "USER_400_1", "사용자 상태가 올바르지 않습니다."),
     KAKAO_AUTH_FAILED(401, "USER_401_1", "카카오 인가 코드가 유효하지 않습니다."),
     ALREADY_SIGNED_UP_USER(400, "USER_409_1", "이미 회원가입 된 사용자입니다."),
     KAKAO_LOGIN_FAILED(502, "USER_502_1", "카카오 로그인 처리 중 오류가 발생했습니다."),
