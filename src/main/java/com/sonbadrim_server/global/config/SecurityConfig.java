@@ -1,5 +1,6 @@
 package com.sonbadrim_server.global.config;
 
+import com.sonbadrim_server.global.filter.AdminVerificationFilter;
 import com.sonbadrim_server.global.filter.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,6 +34,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AdminVerificationFilter adminVerificationFilter;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -98,6 +100,7 @@ public class SecurityConfig {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .addFilterBefore(jwtAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(adminVerificationFilter, JwtAuthenticationFilter.class)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(header -> header.frameOptions(frame -> frame.sameOrigin()))

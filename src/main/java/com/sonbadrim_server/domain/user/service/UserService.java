@@ -6,9 +6,11 @@ import com.sonbadrim_server.domain.user.entity.User;
 import com.sonbadrim_server.domain.user.entity.UserRole;
 import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.entity.RefreshToken;
+import com.sonbadrim_server.domain.user.dto.request.AdminVerificationRequestDto;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
 import com.sonbadrim_server.domain.user.dto.request.UpdateUserProfileRequestDto;
 import com.sonbadrim_server.domain.user.dto.response.AdminUserResponseDto;
+import com.sonbadrim_server.domain.user.dto.response.AdminVerificationResponseDto;
 import com.sonbadrim_server.domain.user.dto.response.EngineerRegistrationStatusResponseDto;
 import com.sonbadrim_server.domain.user.dto.response.UserProfileResponseDto;
 import com.sonbadrim_server.domain.user.repository.RefreshTokenRepository;
@@ -25,6 +27,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
@@ -45,6 +48,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final RegionRepository regionRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -54,6 +58,12 @@ public class UserService {
 
     @Value("${jwt.refresh-expiration}")
     private long refreshTokenExpiration;
+
+    @Value("${admin.verification.password-hash:}")
+    private String adminVerificationPasswordHash;
+
+    @Value("${admin.verification.token-expiration:1800000}")
+    private long adminVerificationTokenExpiration;
 
 
     @Transactional(readOnly = true)
@@ -345,6 +355,31 @@ public class UserService {
 
         return users
                 .map(AdminUserResponseDto::from);
+    }
+
+    public AdminVerificationResponseDto verifyAdminPassword(AdminVerificationRequestDto request) {
+        User admin = getCurrentUser();
+        validateAdmin(admin);
+        if (adminVerificationPasswordHash == null || adminVerificationPasswordHash.isBlank()
+                || !passwordEncoder.matches(request.getPassword(), adminVerificationPasswordHash)) {
+            throw new CustomException(ErrorCode.ADMIN_VERIFICATION_FAILED);
+        }
+
+        return new AdminVerificationResponseDto(generateAdminVerifiedToken(admin));
+    }
+
+    private String generateAdminVerifiedToken(User admin) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + adminVerificationTokenExpiration);
+        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+
+        return Jwts.builder()
+                .subject(admin.getUserId().toString())
+                .claim("type", "admin_verified")
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(key, Jwts.SIG.HS512)
+                .compact();
     }
 
     private String normalizeAdminUserSearchKeyword(String keyword) {

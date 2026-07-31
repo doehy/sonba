@@ -2,6 +2,7 @@ package com.sonbadrim_server.domain.user.service;
 
 import com.sonbadrim_server.domain.region.entity.Region;
 import com.sonbadrim_server.domain.region.repository.RegionRepository;
+import com.sonbadrim_server.domain.user.dto.request.AdminVerificationRequestDto;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
 import com.sonbadrim_server.domain.user.entity.Gender;
 import com.sonbadrim_server.domain.user.entity.RefreshToken;
@@ -25,6 +26,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.jdbc.Sql;
@@ -59,6 +61,9 @@ class UserServiceTest {
 
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Autowired
     private EntityManager entityManager;
@@ -333,6 +338,67 @@ class UserServiceTest {
                         assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
                         assertThat(user.isEngineerRegistered()).isFalse();
                     });
+        }
+
+        @Test
+        @DisplayName("관리자 비밀번호가 일치하면 관리자 인증 토큰을 발급한다")
+        void verifyAdminPassword_success() {
+            // given
+            User admin = saveUser(900000000035L, UserStatus.ACTIVE, "admin-token", UserRole.ADMIN);
+            setAuthenticatedUser(admin);
+            ReflectionTestUtils.setField(
+                    userService,
+                    "adminVerificationPasswordHash",
+                    passwordEncoder.encode("admin-password")
+            );
+
+            AdminVerificationRequestDto request = new AdminVerificationRequestDto();
+            ReflectionTestUtils.setField(request, "password", "admin-password");
+
+            // when
+            var response = userService.verifyAdminPassword(request);
+
+            // then
+            assertThat(response.getAdminVerifiedToken()).isNotBlank();
+        }
+
+        @Test
+        @DisplayName("관리자 비밀번호가 일치하지 않으면 관리자 인증 토큰을 발급하지 않는다")
+        void verifyAdminPassword_wrongPassword() {
+            // given
+            User admin = saveUser(900000000036L, UserStatus.ACTIVE, "admin-token", UserRole.ADMIN);
+            setAuthenticatedUser(admin);
+            ReflectionTestUtils.setField(
+                    userService,
+                    "adminVerificationPasswordHash",
+                    passwordEncoder.encode("admin-password")
+            );
+
+            AdminVerificationRequestDto request = new AdminVerificationRequestDto();
+            ReflectionTestUtils.setField(request, "password", "wrong-password");
+
+            // when & then
+            assertThatThrownBy(() -> userService.verifyAdminPassword(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.ADMIN_VERIFICATION_FAILED);
+        }
+
+        @Test
+        @DisplayName("관리자가 아니면 관리자 재인증을 할 수 없다")
+        void verifyAdminPassword_forbidden() {
+            // given
+            User user = saveUser(900000000037L, UserStatus.ACTIVE, "user-token");
+            setAuthenticatedUser(user);
+
+            AdminVerificationRequestDto request = new AdminVerificationRequestDto();
+            ReflectionTestUtils.setField(request, "password", "admin-password");
+
+            // when & then
+            assertThatThrownBy(() -> userService.verifyAdminPassword(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.FORBIDDEN);
         }
 
         @Test
