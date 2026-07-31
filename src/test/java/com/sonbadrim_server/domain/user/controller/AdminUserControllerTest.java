@@ -1,6 +1,6 @@
 package com.sonbadrim_server.domain.user.controller;
 
-import com.sonbadrim_server.domain.user.dto.response.AdminUserResponseDto;
+import com.sonbadrim_server.domain.user.dto.response.UserListItemResponseDto;
 import com.sonbadrim_server.domain.user.entity.UserRole;
 import com.sonbadrim_server.domain.user.entity.UserStatus;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
@@ -49,7 +49,7 @@ class AdminUserControllerTest {
         @DisplayName("관리자는 유저 목록을 조회할 수 있다")
         void getAdminUsers_success() throws Exception {
             // given
-            AdminUserResponseDto response = AdminUserResponseDto.builder()
+            UserListItemResponseDto response = UserListItemResponseDto.builder()
                     .userId(7L)
                     .nickname("테스트유저")
                     .role(UserRole.USER)

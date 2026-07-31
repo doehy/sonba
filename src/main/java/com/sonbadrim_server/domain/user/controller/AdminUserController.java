@@ -1,6 +1,6 @@
 package com.sonbadrim_server.domain.user.controller;
 
-import com.sonbadrim_server.domain.user.dto.response.AdminUserResponseDto;
+import com.sonbadrim_server.domain.user.dto.response.UserListItemResponseDto;
 import com.sonbadrim_server.domain.user.service.UserService;
 import com.sonbadrim_server.global.common.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -48,7 +48,7 @@ public class AdminUserController {
                 size,
                 Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("userId"))
         );
-        Page<AdminUserResponseDto> response = userService.getAdminUsers(keyword, pageable);
+        Page<UserListItemResponseDto> response = userService.getAdminUsers(keyword, pageable);
         return ResponseEntity.ok(CommonResponse.success(response));
     }
 

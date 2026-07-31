@@ -10,7 +10,7 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class AdminUserResponseDto {
+public class UserListItemResponseDto {
 
     private Long userId;
     private String nickname;
@@ -19,10 +19,10 @@ public class AdminUserResponseDto {
     private boolean engineerRegistered;
     private LocalDateTime createdAt;
 
-    public static AdminUserResponseDto from(User user) {
+    public static UserListItemResponseDto from(User user) {
         Engineer engineer = user.getEngineer();
 
-        return AdminUserResponseDto.builder()
+        return UserListItemResponseDto.builder()
                 .userId(user.getUserId())
                 .nickname(user.getNickname())
                 .role(user.getRole())

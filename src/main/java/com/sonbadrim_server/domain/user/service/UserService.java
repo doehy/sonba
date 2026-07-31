@@ -9,7 +9,7 @@ import com.sonbadrim_server.domain.user.entity.RefreshToken;
 import com.sonbadrim_server.domain.user.dto.request.AdminVerificationRequestDto;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
 import com.sonbadrim_server.domain.user.dto.request.UpdateUserProfileRequestDto;
-import com.sonbadrim_server.domain.user.dto.response.AdminUserResponseDto;
+import com.sonbadrim_server.domain.user.dto.response.UserListItemResponseDto;
 import com.sonbadrim_server.domain.user.dto.response.AdminVerificationResponseDto;
 import com.sonbadrim_server.domain.user.dto.response.EngineerRegistrationStatusResponseDto;
 import com.sonbadrim_server.domain.user.dto.response.UserProfileResponseDto;
@@ -341,7 +341,7 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AdminUserResponseDto> getAdminUsers(String keyword, Pageable pageable) {
+    public Page<UserListItemResponseDto> getAdminUsers(String keyword, Pageable pageable) {
         validateAdmin(getCurrentUser());
         String normalizedKeyword = normalizeAdminUserSearchKeyword(keyword);
         Page<User> users;
@@ -354,7 +354,7 @@ public class UserService {
         }
 
         return users
-                .map(AdminUserResponseDto::from);
+                .map(UserListItemResponseDto::from);
     }
 
     public AdminVerificationResponseDto verifyAdminPassword(AdminVerificationRequestDto request) {
