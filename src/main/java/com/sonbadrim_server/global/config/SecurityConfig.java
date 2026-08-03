@@ -42,6 +42,9 @@ public class SecurityConfig {
     @Value("${app.actuator.prometheus-scrape-enabled:false}")
     private boolean prometheusScrapeEnabled;
 
+    @Value("${app.swagger-enabled:false}")
+    private boolean swaggerEnabled;
+
 
     private static final String[] AUTH_WHITELIST = {
             "/signup/**",
@@ -121,12 +124,17 @@ public class SecurityConfig {
                         auth.requestMatchers(HttpMethod.GET, "/actuator/prometheus").permitAll();
                     }
 
+                    if (swaggerEnabled) {
+                        auth.requestMatchers(
+                                "/swagger-ui/**", "/swagger-ui.html",
+                                "/v3/api-docs", "/v3/api-docs/**", "/swagger.html"
+                        ).permitAll();
+                    }
+
                     auth
-                            // Swagger 및 정적 자원 허용
+                            // 에러 페이지 및 정적 자원 허용
                             .requestMatchers(
-                                    "/error", "/favicon.ico",
-                                    "/swagger-ui/**", "/swagger-ui.html",
-                                    "/v3/api-docs", "/v3/api-docs/**", "/swagger.html"
+                                    "/error", "/favicon.ico"
                             ).permitAll()
                             .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
                             // 그 외는 인증 필요
