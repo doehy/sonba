@@ -1,12 +1,14 @@
 package com.sonbadrim_server.domain.engineer.controller;
 
 import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
+import com.sonbadrim_server.domain.engineer.dto.request.PortfolioItemRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.InterestedEngineerItemResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.PhoneDuplicateCheckResponseDto;
 import com.sonbadrim_server.domain.engineer.service.EngineerService;
+import com.sonbadrim_server.domain.portfolio.entity.PortfolioType;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
@@ -125,49 +127,49 @@ class EngineerControllerTest {
 
         @ParameterizedTest
         @NullAndEmptySource
-        @DisplayName("포트폴리오 이미지가 없으면 기술자를 등록할 수 없다")
-        void registerEngineer_portfolioImagesAreMissing(List<String> portfolioImages) throws Exception {
+        @DisplayName("포트폴리오 시공 사례가 없으면 기술자를 등록할 수 없다")
+        void registerEngineer_portfolioItemsAreMissing(List<PortfolioItemRequestDto> portfolioItems) throws Exception {
             // given
             EngineerRequestDto request = createEngineerRequestBuilder()
-                    .portfolioImages(portfolioImages)
+                    .portfolioItems(portfolioItems)
                     .build();
 
             // when & then
-            expectValidationFailure(request, "portfolioImages");
+            expectValidationFailure(request, "portfolioItems");
         }
 
         @Test
-        @DisplayName("포트폴리오 이미지를 7개 이상 등록할 수 없다")
-        void registerEngineer_portfolioImagesExceedMaximum() throws Exception {
+        @DisplayName("포트폴리오 시공 사례를 7개 이상 등록할 수 없다")
+        void registerEngineer_portfolioItemsExceedMaximum() throws Exception {
             // given
             EngineerRequestDto request = createEngineerRequestBuilder()
-                    .portfolioImages(List.of(
-                            "https://example.com/portfolio1.jpg",
-                            "https://example.com/portfolio2.jpg",
-                            "https://example.com/portfolio3.jpg",
-                            "https://example.com/portfolio4.jpg",
-                            "https://example.com/portfolio5.jpg",
-                            "https://example.com/portfolio6.jpg",
-                            "https://example.com/portfolio7.jpg"
+                    .portfolioItems(List.of(
+                            singlePortfolioItem("https://example.com/portfolio1.jpg"),
+                            singlePortfolioItem("https://example.com/portfolio2.jpg"),
+                            singlePortfolioItem("https://example.com/portfolio3.jpg"),
+                            singlePortfolioItem("https://example.com/portfolio4.jpg"),
+                            singlePortfolioItem("https://example.com/portfolio5.jpg"),
+                            singlePortfolioItem("https://example.com/portfolio6.jpg"),
+                            singlePortfolioItem("https://example.com/portfolio7.jpg")
                     ))
                     .build();
 
             // when & then
-            expectValidationFailure(request, "portfolioImages");
+            expectValidationFailure(request, "portfolioItems");
         }
 
         @Test
-        @DisplayName("포트폴리오 이미지를 최대 6개까지 등록할 수 있다")
-        void registerEngineer_portfolioImagesAtMaximum() throws Exception {
+        @DisplayName("포트폴리오 시공 사례를 최대 6개까지 등록할 수 있다")
+        void registerEngineer_portfolioItemsAtMaximum() throws Exception {
             // given
             EngineerRequestDto request = createEngineerRequestBuilder()
-                    .portfolioImages(List.of(
-                            "https://example.com/portfolio1.jpg",
-                            "https://example.com/portfolio2.jpg",
-                            "https://example.com/portfolio3.jpg",
-                            "https://example.com/portfolio4.jpg",
-                            "https://example.com/portfolio5.jpg",
-                            "https://example.com/portfolio6.jpg"
+                    .portfolioItems(List.of(
+                            singlePortfolioItem("https://example.com/portfolio1.jpg"),
+                            singlePortfolioItem("https://example.com/portfolio2.jpg"),
+                            singlePortfolioItem("https://example.com/portfolio3.jpg"),
+                            singlePortfolioItem("https://example.com/portfolio4.jpg"),
+                            singlePortfolioItem("https://example.com/portfolio5.jpg"),
+                            singlePortfolioItem("https://example.com/portfolio6.jpg")
                     ))
                     .build();
 
@@ -178,11 +180,32 @@ class EngineerControllerTest {
             expectRegistrationSuccess(request);
         }
 
+        @Test
+        @DisplayName("포트폴리오 시공 사례 하나에 이미지를 9장 이상 등록할 수 없다")
+        void registerEngineer_portfolioItemImagesExceedMaximum() throws Exception {
+            // given
+            EngineerRequestDto request = createEngineerRequestBuilder()
+                    .portfolioItems(List.of(galleryPortfolioItem(9)))
+                    .build();
+
+            // when & then
+            mockMvc.perform(post("/engineers")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.data.code").value("GLOBAL_400_1"))
+                    .andExpect(jsonPath("$.data.validation").exists());
+
+            verify(engineerService, never())
+                    .registerEngineer(any(EngineerRequestDto.class));
+        }
+
         @ParameterizedTest
         @NullAndEmptySource
         @ValueSource(strings = {" ", "   "})
         @DisplayName("기술자 이름이 없으면 기술자를 등록할 수 없다.")
-        void registerEngineer_portfolioImagesIsMissing(String engineerName) throws Exception {
+        void registerEngineer_engineerNameIsMissing(String engineerName) throws Exception {
             // given
             EngineerRequestDto request = createEngineerRequestBuilder()
                     .engineerName(engineerName)
@@ -481,7 +504,13 @@ class EngineerControllerTest {
                     .storeAddress("서울특별시 강남구")
                     .phone("01012345678")
                     .interested(true)
-                    .portfolioImages(List.of("portfolio1.jpg", "portfolio2.jpg"))
+                    .portfolioItems(List.of(
+                            com.sonbadrim_server.domain.engineer.dto.response.PortfolioItemResponseDto.builder()
+                                    .type(PortfolioType.SINGLE)
+                                    .images(List.of("portfolio1.jpg"))
+                                    .thumbnailImages(List.of("portfolio1.jpg"))
+                                    .build()
+                    ))
                     .build();
             given(engineerService.getEngineerDetail(7L))
                     .willReturn(response);
@@ -495,7 +524,7 @@ class EngineerControllerTest {
                     .andExpect(jsonPath("$.data.engineerName").value("김기술"))
                     .andExpect(jsonPath("$.data.categories[0]").value("주방"))
                     .andExpect(jsonPath("$.data.interested").value(true))
-                    .andExpect(jsonPath("$.data.portfolioImages[0]").value("portfolio1.jpg"));
+                    .andExpect(jsonPath("$.data.portfolioItems[0].images[0]").value("portfolio1.jpg"));
 
             verify(engineerService).getEngineerDetail(7L);
         }
@@ -854,8 +883,9 @@ class EngineerControllerTest {
     private EngineerRequestDto.EngineerRequestDtoBuilder createEngineerRequestBuilder() {
         return EngineerRequestDto.builder()
                 .categories(List.of("주방", "타일"))
-                .portfolioImages(List.of("https://example.com/portfolio1.jpg",
-                        "https://example.com/portfolio2.jpg"
+                .portfolioItems(List.of(
+                        singlePortfolioItem("https://example.com/portfolio1.jpg"),
+                        singlePortfolioItem("https://example.com/portfolio2.jpg")
                 ))
                 .introduction("주방과 타일 시공을 전문으로 합니다.")
                 .regionId(1)
@@ -865,5 +895,21 @@ class EngineerControllerTest {
                 .phone("010-1234-5678")
                 .engineerName("김도현")
                 .headline("주방 시공 전문");
+    }
+
+    private PortfolioItemRequestDto singlePortfolioItem(String imageUrl) {
+        return PortfolioItemRequestDto.builder()
+                .type(PortfolioType.SINGLE)
+                .images(List.of(imageUrl))
+                .build();
+    }
+
+    private PortfolioItemRequestDto galleryPortfolioItem(int imageCount) {
+        return PortfolioItemRequestDto.builder()
+                .type(PortfolioType.GALLERY)
+                .images(java.util.stream.IntStream.rangeClosed(1, imageCount)
+                        .mapToObj(index -> "https://example.com/gallery-" + index + ".jpg")
+                        .toList())
+                .build();
     }
 }

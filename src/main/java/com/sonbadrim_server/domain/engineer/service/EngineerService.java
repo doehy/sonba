@@ -3,12 +3,14 @@ package com.sonbadrim_server.domain.engineer.service;
 import com.sonbadrim_server.domain.category.entity.Category;
 import com.sonbadrim_server.domain.category.repository.CategoryRepository;
 import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
+import com.sonbadrim_server.domain.engineer.dto.request.PortfolioItemRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerClaimRequestResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerSummaryResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.InterestedEngineerItemResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.PhoneDuplicateCheckResponseDto;
+import com.sonbadrim_server.domain.engineer.dto.response.PortfolioItemResponseDto;
 import com.sonbadrim_server.domain.engineer.entity.Engineer;
 import com.sonbadrim_server.domain.engineer.entity.EngineerCategory;
 import com.sonbadrim_server.domain.engineer.entity.EngineerClaimStatus;
@@ -20,6 +22,7 @@ import com.sonbadrim_server.domain.image.event.ImageUploadedEvent;
 import com.sonbadrim_server.domain.image.entity.ImageUsageType;
 import com.sonbadrim_server.domain.image.service.ImagePolicyValidator;
 import com.sonbadrim_server.domain.portfolio.entity.Portfolio;
+import com.sonbadrim_server.domain.portfolio.entity.PortfolioType;
 import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
 import com.sonbadrim_server.domain.region.entity.Region;
 import com.sonbadrim_server.domain.region.repository.RegionRepository;
@@ -42,12 +45,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Slf4j
 @Service
@@ -56,6 +58,7 @@ import java.util.stream.Collectors;
 public class EngineerService {
 
     private static final String ADMIN_CREATED_DEFAULT_INTRODUCTION = "상세 소개는 추후 보완될 예정입니다.";
+    private static final int MAX_GALLERY_IMAGE_COUNT = 8;
 
     private final EngineerRepository engineerRepository;
     private final EngineerCategoryRepository engineerCategoryRepository;
@@ -87,8 +90,8 @@ public class EngineerService {
                 .orElseThrow(() -> new CustomException(ErrorCode.REGION_NOT_FOUND));
 
         List<Category> categories = validateAndGetCategories(request.getCategories());
-        List<String> normalizedPortfolioImages =
-                validateAndNormalizePortfolioImages(request.getPortfolioImages());
+        List<NormalizedPortfolioItem> normalizedPortfolioItems =
+                validateAndNormalizePortfolioItems(request.getPortfolioItems());
         String normalizedProfileImage = imagePolicyValidator.validateProfileImageUrl(request.getProfileImage());
 
         Engineer engineer = Engineer.create(
@@ -103,7 +106,7 @@ public class EngineerService {
                 trimToNull(request.getHeadline())
         );
 
-        return saveEngineerWithRelations(engineer, categories, normalizedPortfolioImages, normalizedProfileImage);
+        return saveEngineerWithRelations(engineer, categories, normalizedPortfolioItems, normalizedProfileImage);
     }
 
     /**
@@ -122,8 +125,8 @@ public class EngineerService {
                 .orElseThrow(() -> new CustomException(ErrorCode.REGION_NOT_FOUND));
 
         List<Category> categories = validateAndGetCategories(request.getCategories());
-        List<String> normalizedPortfolioImages =
-                validateAndNormalizePortfolioImages(request.getPortfolioImages());
+        List<NormalizedPortfolioItem> normalizedPortfolioItems =
+                validateAndNormalizePortfolioItems(request.getPortfolioItems());
         String normalizedProfileImage = imagePolicyValidator.validateProfileImageUrl(request.getProfileImage());
 
         Engineer engineer = Engineer.createAdminCreated(
@@ -137,13 +140,13 @@ public class EngineerService {
                 trimToNull(request.getHeadline())
         );
 
-        return saveEngineerWithRelations(engineer, categories, normalizedPortfolioImages, normalizedProfileImage);
+        return saveEngineerWithRelations(engineer, categories, normalizedPortfolioItems, normalizedProfileImage);
     }
 
     private EngineerCreateResponse saveEngineerWithRelations(
             Engineer engineer,
             List<Category> categories,
-            List<String> normalizedPortfolioImages,
+            List<NormalizedPortfolioItem> normalizedPortfolioItems,
             String normalizedProfileImage
     ) {
         engineerRepository.save(engineer);
@@ -153,9 +156,7 @@ public class EngineerService {
                 .toList();
         engineerCategoryRepository.saveAll(mappings);
 
-        List<Portfolio> portfolios = normalizedPortfolioImages.stream()
-                .map(image -> Portfolio.create(engineer, image))
-                .toList();
+        List<Portfolio> portfolios = createPortfolios(engineer, normalizedPortfolioItems);
 
         List<Portfolio> savedPortfolios = portfolioRepository.saveAll(portfolios);
         publishProfileImageUploadedEvent(engineer.getEngineerId(), normalizedProfileImage);
@@ -206,8 +207,8 @@ public class EngineerService {
         }
 
         List<Category> categories = validateAndGetCategories(request.getCategories());
-        List<String> normalizedPortfolioImages =
-                validateAndNormalizePortfolioImages(request.getPortfolioImages());
+        List<NormalizedPortfolioItem> normalizedPortfolioItems =
+                validateAndNormalizePortfolioItems(request.getPortfolioItems());
         String normalizedProfileImage = imagePolicyValidator.validateProfileImageUrl(request.getProfileImage());
         boolean profileImageChanged = !Objects.equals(engineer.getProfileImage(), normalizedProfileImage);
 
@@ -223,7 +224,7 @@ public class EngineerService {
         );
 
         replaceCategories(engineer, categories);
-        replacePortfolioImages(engineer, normalizedPortfolioImages);
+        replacePortfolioItems(engineer, normalizedPortfolioItems);
         if (profileImageChanged) {
             publishProfileImageUploadedEvent(engineer.getEngineerId(), normalizedProfileImage);
         }
@@ -260,18 +261,15 @@ public class EngineerService {
         Engineer engineer = engineerRepository.findDetailByEngineerId(engineerId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ENGINEER_NOT_FOUND));
         List<Portfolio> portfolios = portfolioRepository.findByEngineer_EngineerId(engineerId);
-        List<String> portfolioImages = portfolios.stream()
-                .map(Portfolio::getPortfolioImage)
-                .toList();
-        List<String> portfolioThumbnailImages = portfolios.stream()
-                .map(Portfolio::getDisplayPortfolioImage)
+        List<PortfolioItemResponseDto> portfolioItems = portfolios.stream()
+                .map(PortfolioItemResponseDto::from)
                 .toList();
 
         Long currentUserId = getCurrentUserIdOrNull();
         boolean interested = currentUserId != null
                 && interestedEngineerRepository.existsByUser_UserIdAndEngineer_EngineerId(currentUserId, engineerId);
 
-        return EngineerDetailResponseDto.from(engineer, portfolioImages, portfolioThumbnailImages, interested);
+        return EngineerDetailResponseDto.from(engineer, portfolioItems, interested);
     }
 
     /**
@@ -329,6 +327,9 @@ public class EngineerService {
         );
     }
 
+    /**
+     * 관심 기술자를 등록한다.
+     */
     public void addInterestedEngineer(Long engineerId) {
         User user = userService.getCurrentUser();
         Engineer engineer = engineerRepository.findById(engineerId)
@@ -360,6 +361,9 @@ public class EngineerService {
         }
     }
 
+    /**
+     * 관심 기술자를 삭제한다.
+     */
     public void removeInterestedEngineer(Long engineerId) {
         User user = userService.getCurrentUser();
         if (!engineerRepository.existsById(engineerId)) {
@@ -372,6 +376,9 @@ public class EngineerService {
         );
     }
 
+    /**
+     * 기존 기술자에 계정 연결 요청을 한다.
+     */
     public void requestEngineerClaim(Long engineerId) {
         User currentUser = userService.getCurrentUser();
 
@@ -396,6 +403,9 @@ public class EngineerService {
         engineer.requestClaim(currentUser);
     }
 
+    /**
+     * 기술자 연결 요청 목록을 조회한다.
+     */
     @Transactional(readOnly = true)
     public Page<EngineerClaimRequestResponseDto> getEngineerClaimRequests(Pageable pageable) {
         validateAdmin(userService.getCurrentUser());
@@ -405,6 +415,9 @@ public class EngineerService {
                 .map(EngineerClaimRequestResponseDto::from);
     }
 
+    /**
+     * 기술자 연결 요청을 승인해준다.
+     */
     public void approveEngineerClaim(Long engineerId) {
         validateAdmin(userService.getCurrentUser());
 
@@ -421,6 +434,9 @@ public class EngineerService {
         engineer.approveClaim(requester);
     }
 
+    /**
+     * 기술자 연결 요청을 거절한다.
+     */
     public void rejectEngineerClaim(Long engineerId) {
         validateAdmin(userService.getCurrentUser());
 
@@ -518,23 +534,74 @@ public class EngineerService {
         return categories;
     }
 
-    private List<String> validateAndNormalizePortfolioImages(List<String> portfolioImages) {
-        if (portfolioImages == null || portfolioImages.isEmpty()) {
+    private List<NormalizedPortfolioItem> validateAndNormalizePortfolioItems(List<PortfolioItemRequestDto> portfolioItems) {
+        if (portfolioItems == null || portfolioItems.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
         }
 
-        List<String> normalizedPortfolioImages = portfolioImages.stream()
+        List<NormalizedPortfolioItem> normalizedPortfolioItems = portfolioItems.stream()
+                .map(this::validateAndNormalizePortfolioItem)
+                .toList();
+
+        if (normalizedPortfolioItems.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+        }
+
+        return normalizedPortfolioItems;
+    }
+
+    private NormalizedPortfolioItem validateAndNormalizePortfolioItem(PortfolioItemRequestDto portfolioItem) {
+        if (portfolioItem == null || portfolioItem.getType() == null) {
+            throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+        }
+
+        List<String> normalizedImages = normalizePortfolioImageUrls(portfolioItem.getImages());
+        validatePortfolioImageCount(portfolioItem.getType(), normalizedImages.size());
+
+        return new NormalizedPortfolioItem(
+                portfolioItem.getType(),
+                trimToNull(portfolioItem.getTitle()),
+                normalizedImages
+        );
+    }
+
+    private List<String> normalizePortfolioImageUrls(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+        }
+
+        List<String> normalizedImageUrls = imageUrls.stream()
                 .map(this::trimToNull)
                 .filter(image -> image != null)
                 .map(imagePolicyValidator::validatePortfolioImageUrl)
                 .distinct()
                 .toList();
 
-        if (normalizedPortfolioImages.isEmpty()) {
+        if (normalizedImageUrls.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
         }
 
-        return normalizedPortfolioImages;
+        return normalizedImageUrls;
+    }
+
+    private void validatePortfolioImageCount(PortfolioType type, int imageCount) {
+        switch (type) {
+            case SINGLE -> {
+                if (imageCount != 1) {
+                    throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+                }
+            }
+            case BEFORE_AFTER -> {
+                if (imageCount != 2) {
+                    throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+                }
+            }
+            case GALLERY -> {
+                if (imageCount < 2 || imageCount > MAX_GALLERY_IMAGE_COUNT) {
+                    throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+                }
+            }
+        }
     }
 
     private void replaceCategories(Engineer engineer, List<Category> categories) {
@@ -548,32 +615,63 @@ public class EngineerService {
         engineerCategoryRepository.saveAll(mappings);
     }
 
-    private void replacePortfolioImages(Engineer engineer, List<String> portfolioImages) {
+    private void replacePortfolioItems(Engineer engineer, List<NormalizedPortfolioItem> portfolioItems) {
         List<Portfolio> existingPortfolios =
                 portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId());
-        Set<String> requestedImageUrls = new HashSet<>(portfolioImages);
-        Set<String> existingImageUrls = existingPortfolios.stream()
-                .map(Portfolio::getPortfolioImage)
-                .collect(Collectors.toSet());
+        List<NormalizedPortfolioItem> requestedPortfolioItems = portfolioItems;
 
         List<Portfolio> portfoliosToDelete = existingPortfolios.stream()
-                .filter(portfolio -> !requestedImageUrls.contains(portfolio.getPortfolioImage()))
+                .filter(portfolio -> !requestedPortfolioItems.contains(toNormalizedPortfolioItem(portfolio)))
                 .toList();
         if (!portfoliosToDelete.isEmpty()) {
             portfolioRepository.deleteAll(portfoliosToDelete);
+            portfolioRepository.flush();
         }
 
-        List<Portfolio> images = portfolioImages.stream()
-                .filter(imageUrl -> !existingImageUrls.contains(imageUrl))
-                .map(imageUrl -> Portfolio.create(engineer, imageUrl))
+        List<Portfolio> portfoliosToCreate = IntStream.range(0, portfolioItems.size())
+                .filter(index -> existingPortfolios.stream()
+                        .noneMatch(portfolio -> toNormalizedPortfolioItem(portfolio).equals(requestedPortfolioItems.get(index))))
+                .mapToObj(index -> {
+                    NormalizedPortfolioItem portfolioItem = portfolioItems.get(index);
+                    return Portfolio.create(
+                            engineer,
+                            portfolioItem.type(),
+                            portfolioItem.title(),
+                            index,
+                            portfolioItem.images()
+                    );
+                })
                 .toList();
 
-        if (images.isEmpty()) {
-            return;
-        }
-
-        List<Portfolio> savedPortfolios = portfolioRepository.saveAll(images);
+        List<Portfolio> savedPortfolios = portfolioRepository.saveAll(portfoliosToCreate);
         publishPortfolioImageUploadedEvents(savedPortfolios);
+    }
+
+    private List<Portfolio> createPortfolios(Engineer engineer, List<NormalizedPortfolioItem> portfolioItems) {
+        return IntStream.range(0, portfolioItems.size())
+                .mapToObj(index -> {
+                    NormalizedPortfolioItem portfolioItem = portfolioItems.get(index);
+                    return Portfolio.create(
+                            engineer,
+                            portfolioItem.type(),
+                            portfolioItem.title(),
+                            index,
+                            portfolioItem.images()
+                    );
+                })
+                .toList();
+    }
+
+    private NormalizedPortfolioItem toNormalizedPortfolioItem(Portfolio portfolio) {
+        List<String> images = portfolio.getImages().stream()
+                .map(portfolioImage -> portfolioImage.getImageUrl())
+                .toList();
+
+        return new NormalizedPortfolioItem(
+                portfolio.getType(),
+                portfolio.getTitle(),
+                images
+        );
     }
 
     private void publishProfileImageUploadedEvent(Long engineerId, String profileImageUrl) {
@@ -589,12 +687,14 @@ public class EngineerService {
     private void publishPortfolioImageUploadedEvents(List<Portfolio> portfolios) {
         portfolios.stream()
                 .filter(portfolio -> portfolio.getPortfolioId() != null)
-                .filter(portfolio -> portfolio.getPortfolioImage() != null && !portfolio.getPortfolioImage().isBlank())
-                .forEach(portfolio -> eventPublisher.publishEvent(
+                .flatMap(portfolio -> portfolio.getImages().stream())
+                .filter(portfolioImage -> portfolioImage.getPortfolioImageId() != null)
+                .filter(portfolioImage -> portfolioImage.getImageUrl() != null && !portfolioImage.getImageUrl().isBlank())
+                .forEach(portfolioImage -> eventPublisher.publishEvent(
                         new ImageUploadedEvent(
                                 ImageUsageType.ENGINEER_PORTFOLIO,
-                                portfolio.getPortfolioId(),
-                                portfolio.getPortfolioImage()
+                                portfolioImage.getPortfolioImageId(),
+                                portfolioImage.getImageUrl()
                         )
                 ));
     }
@@ -666,4 +766,12 @@ public class EngineerService {
             return null;
         }
     }
+
+    private record NormalizedPortfolioItem(
+            PortfolioType type,
+            String title,
+            List<String> images
+    ) {
+    }
+
 }

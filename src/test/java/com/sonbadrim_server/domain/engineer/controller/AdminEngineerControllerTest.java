@@ -1,8 +1,10 @@
 package com.sonbadrim_server.domain.engineer.controller;
 
 import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
+import com.sonbadrim_server.domain.engineer.dto.request.PortfolioItemRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.service.EngineerService;
+import com.sonbadrim_server.domain.portfolio.entity.PortfolioType;
 import com.sonbadrim_server.domain.user.repository.UserRepository;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
@@ -179,8 +181,9 @@ class AdminEngineerControllerTest {
     private EngineerRequestDto.EngineerRequestDtoBuilder createEngineerRequestBuilder() {
         return EngineerRequestDto.builder()
                 .categories(List.of("주방", "타일"))
-                .portfolioImages(List.of("https://example.com/portfolio1.jpg",
-                        "https://example.com/portfolio2.jpg"
+                .portfolioItems(List.of(
+                        singlePortfolioItem("https://example.com/portfolio1.jpg"),
+                        singlePortfolioItem("https://example.com/portfolio2.jpg")
                 ))
                 .introduction(null)
                 .regionId(1)
@@ -190,5 +193,12 @@ class AdminEngineerControllerTest {
                 .phone("010-1234-5678")
                 .engineerName("김도현")
                 .headline(null);
+    }
+
+    private PortfolioItemRequestDto singlePortfolioItem(String imageUrl) {
+        return PortfolioItemRequestDto.builder()
+                .type(PortfolioType.SINGLE)
+                .images(List.of(imageUrl))
+                .build();
     }
 }

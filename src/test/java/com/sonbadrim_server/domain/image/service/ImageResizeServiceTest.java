@@ -1,7 +1,7 @@
 package com.sonbadrim_server.domain.image.service;
 
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
-import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
+import com.sonbadrim_server.domain.portfolio.repository.PortfolioImageRepository;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -35,7 +35,7 @@ class ImageResizeServiceTest {
 
     private S3Client s3Client;
     private EngineerRepository engineerRepository;
-    private PortfolioRepository portfolioRepository;
+    private PortfolioImageRepository portfolioImageRepository;
     private SimpleMeterRegistry meterRegistry;
     private ImageResizeService imageResizeService;
 
@@ -43,9 +43,9 @@ class ImageResizeServiceTest {
     void setUp() {
         s3Client = mock(S3Client.class);
         engineerRepository = mock(EngineerRepository.class);
-        portfolioRepository = mock(PortfolioRepository.class);
+        portfolioImageRepository = mock(PortfolioImageRepository.class);
         meterRegistry = new SimpleMeterRegistry();
-        imageResizeService = new ImageResizeService(s3Client, engineerRepository, portfolioRepository, meterRegistry);
+        imageResizeService = new ImageResizeService(s3Client, engineerRepository, portfolioImageRepository, meterRegistry);
         ReflectionTestUtils.setField(imageResizeService, "bucketName", "sonbadream-image");
         ReflectionTestUtils.setField(imageResizeService, "publicDomain", "https://image.test");
     }
@@ -127,6 +127,26 @@ class ImageResizeServiceTest {
     }
 
     @Test
+    @DisplayName("EXIF Orientation 6 이미지는 오른쪽으로 90도 회전 보정한다")
+    void applyOrientation_orientation6RotatesRight() {
+        // given
+        BufferedImage originalImage = new BufferedImage(400, 800, BufferedImage.TYPE_INT_RGB);
+
+        // when
+        BufferedImage orientedImage = ReflectionTestUtils.invokeMethod(
+                imageResizeService,
+                "applyOrientation",
+                originalImage,
+                6
+        );
+
+        // then
+        assertThat(orientedImage).isNotNull();
+        assertThat(orientedImage.getWidth()).isEqualTo(800);
+        assertThat(orientedImage.getHeight()).isEqualTo(400);
+    }
+
+    @Test
     @DisplayName("포트폴리오 원본 이미지를 리사이징해서 썸네일로 업로드하고 DB에 반영한다")
     void createPortfolioThumbnail_success() throws Exception {
         // given
@@ -154,7 +174,7 @@ class ImageResizeServiceTest {
         assertThat(putRequestCaptor.getValue().key()).isEqualTo("engineer/portfolio-thumbnail/portfolio.jpg");
         assertThat(putRequestCaptor.getValue().contentType()).isEqualTo("image/jpeg");
 
-        verify(portfolioRepository).updatePortfolioThumbnailImageIfPortfolioUnchanged(
+        verify(portfolioImageRepository).updateThumbnailImageIfImageUnchanged(
                 10L,
                 portfolioImageUrl,
                 "https://image.test/engineer/portfolio-thumbnail/portfolio.jpg"

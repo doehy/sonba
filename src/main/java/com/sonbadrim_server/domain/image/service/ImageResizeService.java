@@ -1,7 +1,10 @@
 package com.sonbadrim_server.domain.image.service;
 
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.metadata.Metadata;
+import com.drew.metadata.exif.ExifIFD0Directory;
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
-import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
+import com.sonbadrim_server.domain.portfolio.repository.PortfolioImageRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -40,7 +43,7 @@ public class ImageResizeService {
 
     private final S3Client s3Client;
     private final EngineerRepository engineerRepository;
-    private final PortfolioRepository portfolioRepository;
+    private final PortfolioImageRepository portfolioImageRepository;
     private final MeterRegistry meterRegistry;
 
     @Value("${cloudflare.r2.bucket}")
@@ -102,8 +105,8 @@ public class ImageResizeService {
      * 포트폴리오 원본 이미지를 읽어 JPG 썸네일을 생성하고, 생성된 썸네일 URL을 포트폴리오 정보에 저장한다.
      */
     @Transactional
-    public void createPortfolioThumbnail(Long portfolioId, String portfolioImageUrl) {
-        if (portfolioId == null || portfolioImageUrl == null || portfolioImageUrl.isBlank()) {
+    public void createPortfolioThumbnail(Long portfolioImageId, String portfolioImageUrl) {
+        if (portfolioImageId == null || portfolioImageUrl == null || portfolioImageUrl.isBlank()) {
             return;
         }
 
@@ -115,7 +118,7 @@ public class ImageResizeService {
 
         if (!isSupportedOriginalExtension(originalKey)) {
             recordThumbnailMetric("portfolio", "skipped", "unsupported_extension");
-            log.warn("Skip portfolio thumbnail: unsupported extension. portfolioId={}, key={}", portfolioId, originalKey);
+            log.warn("Skip portfolio thumbnail: unsupported extension. portfolioImageId={}, key={}", portfolioImageId, originalKey);
             return;
         }
 
@@ -127,7 +130,7 @@ public class ImageResizeService {
             );
             if (resizedBytes == null) {
                 recordThumbnailMetric("portfolio", "skipped", "unsupported_content");
-                log.warn("Skip portfolio thumbnail: unsupported image content. portfolioId={}, key={}", portfolioId, originalKey);
+                log.warn("Skip portfolio thumbnail: unsupported image content. portfolioImageId={}, key={}", portfolioImageId, originalKey);
                 return;
             }
             String thumbnailKey = toPortfolioThumbnailKey(originalKey);
@@ -135,15 +138,15 @@ public class ImageResizeService {
             putThumbnail(thumbnailKey, resizedBytes);
 
             String thumbnailUrl = getImageUrl(thumbnailKey);
-            portfolioRepository.updatePortfolioThumbnailImageIfPortfolioUnchanged(
-                    portfolioId,
+            portfolioImageRepository.updateThumbnailImageIfImageUnchanged(
+                    portfolioImageId,
                     portfolioImageUrl,
                     thumbnailUrl
             );
             recordThumbnailMetric("portfolio", "success", "none");
         } catch (Exception e) {
             recordThumbnailMetric("portfolio", "failed", "exception");
-            log.warn("Failed to create portfolio thumbnail. portfolioId={}, key={}", portfolioId, originalKey, e);
+            log.warn("Failed to create portfolio thumbnail. portfolioImageId={}, key={}", portfolioImageId, originalKey, e);
         }
     }
 
@@ -163,12 +166,15 @@ public class ImageResizeService {
      * 원본 이미지를 읽고 지정한 최대 크기 안으로 축소한 JPG 썸네일 바이트 배열을 만든다.
      */
     private byte[] createThumbnailBytes(String originalKey, int maxWidth, int maxHeight) {
-        BufferedImage originalImage = readImage(originalKey);
+        byte[] originalBytes = getImageBytes(originalKey);
+        BufferedImage originalImage = readImage(originalBytes);
         if (originalImage == null) {
             return null;
         }
 
-        BufferedImage resizedImage = resize(originalImage, maxWidth, maxHeight);
+        int orientation = readExifOrientation(originalBytes);
+        BufferedImage orientedImage = applyOrientation(originalImage, orientation);
+        BufferedImage resizedImage = resize(orientedImage, maxWidth, maxHeight);
         return writeImage(toRgbImage(resizedImage), THUMBNAIL_FORMAT);
     }
 
@@ -187,9 +193,9 @@ public class ImageResizeService {
     }
 
     /**
-     * R2에 저장된 이미지 객체를 key로 조회한 뒤 Java 이미지 객체로 변환한다.
+     * R2에 저장된 이미지 객체를 key로 조회한 뒤 원본 바이트 배열로 반환한다.
      */
-    private BufferedImage readImage(String key) {
+    private byte[] getImageBytes(String key) {
         ResponseBytes<GetObjectResponse> responseBytes = s3Client.getObject(
                 GetObjectRequest.builder()
                         .bucket(bucketName)
@@ -197,7 +203,7 @@ public class ImageResizeService {
                         .build(),
                 ResponseTransformer.toBytes()
         );
-        return readImage(responseBytes.asByteArray());
+        return responseBytes.asByteArray();
     }
 
     /**
@@ -209,6 +215,62 @@ public class ImageResizeService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * 이미지 EXIF Orientation 값을 읽는다. 읽을 수 없으면 기본 방향인 1을 반환한다.
+     */
+    private int readExifOrientation(byte[] bytes) {
+        try {
+            Metadata metadata = ImageMetadataReader.readMetadata(new ByteArrayInputStream(bytes));
+            ExifIFD0Directory directory = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
+            if (directory == null || !directory.containsTag(ExifIFD0Directory.TAG_ORIENTATION)) {
+                return 1;
+            }
+            return directory.getInt(ExifIFD0Directory.TAG_ORIENTATION);
+        } catch (Exception e) {
+            return 1;
+        }
+    }
+
+    /**
+     * EXIF Orientation 값에 맞게 실제 픽셀 방향을 보정한다.
+     */
+    private BufferedImage applyOrientation(BufferedImage image, int orientation) {
+        return switch (orientation) {
+            case 3 -> rotate(image, Math.PI, image.getWidth(), image.getHeight());
+            case 6 -> rotate(image, Math.PI / 2, image.getHeight(), image.getWidth());
+            case 8 -> rotate(image, -Math.PI / 2, image.getHeight(), image.getWidth());
+            default -> image;
+        };
+    }
+
+    /**
+     * 이미지를 지정한 각도만큼 회전한 새 BufferedImage로 변환한다.
+     */
+    private BufferedImage rotate(BufferedImage image, double angle, int targetWidth, int targetHeight) {
+        int imageType = image.getTransparency() == BufferedImage.OPAQUE
+                ? BufferedImage.TYPE_INT_RGB
+                : BufferedImage.TYPE_INT_ARGB;
+        BufferedImage rotatedImage = new BufferedImage(targetWidth, targetHeight, imageType);
+        Graphics2D graphics = rotatedImage.createGraphics();
+        try {
+            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            if (angle == Math.PI / 2) {
+                graphics.translate(targetWidth, 0);
+            } else if (angle == -Math.PI / 2) {
+                graphics.translate(0, targetHeight);
+            } else if (angle == Math.PI) {
+                graphics.translate(targetWidth, targetHeight);
+            }
+            graphics.rotate(angle);
+            graphics.drawImage(image, 0, 0, null);
+        } finally {
+            graphics.dispose();
+        }
+        return rotatedImage;
     }
 
     /**

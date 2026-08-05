@@ -21,13 +21,11 @@ public class EngineerDetailResponseDto {
     private String storeAddress;
     private String phone;
     private boolean interested;
-    private List<String> portfolioImages;
-    private List<String> portfolioThumbnailImages;
+    private List<PortfolioItemResponseDto> portfolioItems;
 
     public static EngineerDetailResponseDto from(
             Engineer engineer,
-            List<String> portfolioImages,
-            List<String> portfolioThumbnailImages,
+            List<PortfolioItemResponseDto> portfolioItems,
             boolean interested
     ) {
         return EngineerDetailResponseDto.builder()
@@ -48,8 +46,7 @@ public class EngineerDetailResponseDto {
                 .storeAddress(engineer.getStoreAddress())
                 .phone(engineer.getPhone())
                 .interested(interested)
-                .portfolioImages(portfolioImages)
-                .portfolioThumbnailImages(portfolioThumbnailImages)
+                .portfolioItems(portfolioItems)
                 .build();
     }
 }

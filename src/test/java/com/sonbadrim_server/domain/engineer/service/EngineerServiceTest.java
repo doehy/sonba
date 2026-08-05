@@ -1,6 +1,7 @@
 package com.sonbadrim_server.domain.engineer.service;
 
 import com.sonbadrim_server.domain.engineer.dto.request.EngineerRequestDto;
+import com.sonbadrim_server.domain.engineer.dto.request.PortfolioItemRequestDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerClaimRequestResponseDto;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerCreateResponse;
 import com.sonbadrim_server.domain.engineer.dto.response.EngineerDetailResponseDto;
@@ -18,6 +19,9 @@ import com.sonbadrim_server.domain.engineer.repository.InterestedEngineerReposit
 import com.sonbadrim_server.domain.category.entity.Category;
 import com.sonbadrim_server.domain.category.repository.CategoryRepository;
 import com.sonbadrim_server.domain.portfolio.entity.Portfolio;
+import com.sonbadrim_server.domain.portfolio.entity.PortfolioImage;
+import com.sonbadrim_server.domain.portfolio.entity.PortfolioType;
+import com.sonbadrim_server.domain.portfolio.repository.PortfolioImageRepository;
 import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
 import com.sonbadrim_server.domain.region.entity.Region;
 import com.sonbadrim_server.domain.region.repository.RegionRepository;
@@ -92,6 +96,9 @@ class EngineerServiceTest {
 
     @Autowired
     private PortfolioRepository portfolioRepository;
+
+    @Autowired
+    private PortfolioImageRepository portfolioImageRepository;
 
     @Autowired
     private RegionRepository regionRepository;
@@ -173,8 +180,80 @@ class EngineerServiceTest {
                     .extracting(engineerCategory -> engineerCategory.getCategory().getCategoryName())
                     .containsExactlyInAnyOrder("주방", "타일");
             assertThat(savedPortfolios)
-                    .extracting(Portfolio::getPortfolioImage)
+                    .extracting(EngineerServiceTest.this::firstPortfolioImageUrl)
                     .containsExactly(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2);
+        }
+
+        @Test
+        @DisplayName("포트폴리오 시공 사례 타입별로 기술자를 등록할 수 있다")
+        void registerEngineer_withPortfolioItems() {
+            // given
+            EngineerRequestDto request = createRequestBuilder()
+                    .portfolioItems(List.of(
+                            portfolioItem(PortfolioType.SINGLE, "현관 중문 시공", List.of(PORTFOLIO_IMAGE_1)),
+                            portfolioItem(PortfolioType.BEFORE_AFTER, "욕실 리모델링", List.of(OLD_PORTFOLIO_IMAGE, NEW_PORTFOLIO_IMAGE)),
+                            portfolioItem(PortfolioType.GALLERY, "신혼집 전체 인테리어", List.of(PORTFOLIO_IMAGE_2, SECOND_PORTFOLIO_IMAGE))
+                    ))
+                    .build();
+
+            // when
+            EngineerCreateResponse response = engineerService.registerEngineer(request);
+
+            // then
+            List<Portfolio> savedPortfolios =
+                    portfolioRepository.findByEngineer_EngineerId(response.getEngineerId());
+            assertThat(savedPortfolios)
+                    .extracting(Portfolio::getType, Portfolio::getTitle)
+                    .containsExactly(
+                            org.assertj.core.groups.Tuple.tuple(PortfolioType.SINGLE, "현관 중문 시공"),
+                            org.assertj.core.groups.Tuple.tuple(PortfolioType.BEFORE_AFTER, "욕실 리모델링"),
+                            org.assertj.core.groups.Tuple.tuple(PortfolioType.GALLERY, "신혼집 전체 인테리어")
+                    );
+            assertThat(savedPortfolios.get(0).getImages())
+                    .extracting(PortfolioImage::getImageUrl)
+                    .containsExactly(PORTFOLIO_IMAGE_1);
+            assertThat(savedPortfolios.get(1).getImages())
+                    .extracting(PortfolioImage::getImageUrl)
+                    .containsExactly(OLD_PORTFOLIO_IMAGE, NEW_PORTFOLIO_IMAGE);
+            assertThat(savedPortfolios.get(2).getImages())
+                    .extracting(PortfolioImage::getImageUrl)
+                    .containsExactly(PORTFOLIO_IMAGE_2, SECOND_PORTFOLIO_IMAGE);
+        }
+
+        @Test
+        @DisplayName("갤러리 포트폴리오는 이미지를 최대 8장까지 등록할 수 있다")
+        void registerEngineer_galleryImagesAtMaximum() {
+            // given
+            List<String> imageUrls = portfolioImageUrls(8);
+            EngineerRequestDto request = createRequestBuilder()
+                    .portfolioItems(List.of(portfolioItem(PortfolioType.GALLERY, "아파트 전체 시공", imageUrls)))
+                    .build();
+
+            // when
+            EngineerCreateResponse response = engineerService.registerEngineer(request);
+
+            // then
+            List<Portfolio> savedPortfolios =
+                    portfolioRepository.findByEngineer_EngineerId(response.getEngineerId());
+            assertThat(savedPortfolios)
+                    .singleElement()
+                    .satisfies(portfolio -> assertThat(portfolioImageUrls(portfolio))
+                            .containsExactlyElementsOf(imageUrls));
+        }
+
+        @Test
+        @DisplayName("갤러리 포트폴리오는 이미지를 9장 이상 등록할 수 없다")
+        void registerEngineer_galleryImagesExceedMaximum() {
+            // given
+            EngineerRequestDto request = createRequestBuilder()
+                    .portfolioItems(List.of(portfolioItem(PortfolioType.GALLERY, "아파트 전체 시공", portfolioImageUrls(9))))
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> engineerService.registerEngineer(request))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.INVALID_PORTFOLIO_IMAGE);
         }
 
         @Test
@@ -338,11 +417,11 @@ class EngineerServiceTest {
 
         @ParameterizedTest
         @NullAndEmptySource
-        @DisplayName("포트폴리오 이미지가 없으면 기술자를 등록할 수 없다")
-        void registerEngineer_portfolioImagesAreMissing(List<String> portfolioImages) {
+        @DisplayName("포트폴리오 시공 사례가 없으면 기술자를 등록할 수 없다")
+        void registerEngineer_portfolioItemsAreMissing(List<String> imageUrls) {
             // given
             EngineerRequestDto request = createRequestBuilder()
-                    .portfolioImages(portfolioImages)
+                    .portfolioItems(portfolioItemsFromImages(imageUrls))
                     .build();
 
             // when & then
@@ -358,10 +437,10 @@ class EngineerServiceTest {
 
         @Test
         @DisplayName("내용이 없는 포트폴리오 이미지로는 기술자를 등록할 수 없다")
-        void registerEngineer_portfolioImagesAreBlank() {
+        void registerEngineer_portfolioItemsAreBlank() {
             // given
             EngineerRequestDto request = createRequestBuilder()
-                    .portfolioImages(List.of(" ", "  "))
+                    .portfolioItems(portfolioItemsFromImages(List.of(" ", "  ")))
                     .build();
 
             // when & then
@@ -380,7 +459,7 @@ class EngineerServiceTest {
         void registerEngineer_rejectExternalPortfolioImageUrl() {
             // given
             EngineerRequestDto request = createRequestBuilder()
-                    .portfolioImages(List.of("https://evil.example.com/portfolio.png"))
+                    .portfolioItems(portfolioItemsFromImages(List.of("https://evil.example.com/portfolio.png")))
                     .build();
 
             // when & then
@@ -436,11 +515,14 @@ class EngineerServiceTest {
         @DisplayName("비어 있거나 중복된 포트폴리오 이미지는 제외하고 등록한다")
         void registerEngineer_normalizesPortfolioImages() {
             // given
-            EngineerRequestDto request = createRequest(
-                    List.of("주방", "타일"),
-                    List.of(" " + PORTFOLIO_IMAGE_1 + " ", " ", PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2),
-                    "010-1234-5678"
-            );
+            EngineerRequestDto request = createRequestBuilder()
+                    .portfolioItems(List.of(portfolioItem(PortfolioType.GALLERY, null, List.of(
+                            " " + PORTFOLIO_IMAGE_1 + " ",
+                            " ",
+                            PORTFOLIO_IMAGE_1,
+                            PORTFOLIO_IMAGE_2
+                    ))))
+                    .build();
 
             // when
             EngineerCreateResponse response = engineerService.registerEngineer(request);
@@ -449,8 +531,9 @@ class EngineerServiceTest {
             List<Portfolio> savedPortfolios =
                     portfolioRepository.findByEngineer_EngineerId(response.getEngineerId());
             assertThat(savedPortfolios)
-                    .extracting(Portfolio::getPortfolioImage)
-                    .containsExactly(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2);
+                    .singleElement()
+                    .satisfies(portfolio -> assertThat(portfolioImageUrls(portfolio))
+                            .containsExactly(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2));
         }
 
         @Test
@@ -525,7 +608,7 @@ class EngineerServiceTest {
                     .extracting(engineerCategory -> engineerCategory.getCategory().getCategoryName())
                     .containsExactlyInAnyOrder("주방", "타일");
             assertThat(savedPortfolios)
-                    .extracting(Portfolio::getPortfolioImage)
+                    .extracting(EngineerServiceTest.this::firstPortfolioImageUrl)
                     .containsExactly(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2);
         }
 
@@ -581,11 +664,11 @@ class EngineerServiceTest {
             );
             Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
             engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
-            portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
+            portfolioRepository.save(createSinglePortfolio(engineer, OLD_PORTFOLIO_IMAGE));
 
             EngineerRequestDto request = createRequestBuilder()
                     .categories(List.of("타일"))
-                    .portfolioImages(List.of( NEW_PORTFOLIO_IMAGE ))
+                    .portfolioItems(portfolioItemsFromImages(List.of(NEW_PORTFOLIO_IMAGE)))
                     .profileImage( NEW_PROFILE_IMAGE )
                     .introduction(" 새로운 소개 ")
                     .storeName(" 새로운 상호 ")
@@ -617,7 +700,7 @@ class EngineerServiceTest {
                     .extracting(mapping -> mapping.getCategory().getCategoryName())
                     .containsExactly("타일");
             assertThat(updatedPortfolios)
-                    .extracting(Portfolio::getPortfolioImage)
+                    .extracting(EngineerServiceTest.this::firstPortfolioImageUrl)
                     .containsExactly(NEW_PORTFOLIO_IMAGE);
         }
 
@@ -631,7 +714,7 @@ class EngineerServiceTest {
                     "기존기술자",
                     "기존 소개"
             );
-            portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
+            portfolioRepository.save(createSinglePortfolio(engineer, OLD_PORTFOLIO_IMAGE));
 
             EngineerRequestDto request = createRequestBuilder()
                     .headline(" ")
@@ -734,16 +817,16 @@ class EngineerServiceTest {
             );
             Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
             engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
-            portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
+            portfolioRepository.save(createSinglePortfolio(engineer, OLD_PORTFOLIO_IMAGE));
 
             EngineerRequestDto request = createRequestBuilder()
                     .categories(List.of(" 주방 ", " ", "주방", "타일"))
-                    .portfolioImages(List.of(
-                            " " + NEW_PORTFOLIO_IMAGE + " ",
-                            " ",
-                            NEW_PORTFOLIO_IMAGE,
-                            SECOND_PORTFOLIO_IMAGE
-                    ))
+                    .portfolioItems(List.of(portfolioItem(PortfolioType.GALLERY, null, List.of(
+                                    " " + NEW_PORTFOLIO_IMAGE + " ",
+                                    " ",
+                                    NEW_PORTFOLIO_IMAGE,
+                                    SECOND_PORTFOLIO_IMAGE
+                            ))))
                     .phone("010-1111-2222")
                     .build();
 
@@ -760,8 +843,9 @@ class EngineerServiceTest {
                     .extracting(mapping -> mapping.getCategory().getCategoryName())
                     .containsExactlyInAnyOrder("주방", "타일");
             assertThat(updatedPortfolios)
-                    .extracting(Portfolio::getPortfolioImage)
-                    .containsExactly(NEW_PORTFOLIO_IMAGE, SECOND_PORTFOLIO_IMAGE);
+                    .singleElement()
+                    .satisfies(portfolio -> assertThat(portfolioImageUrls(portfolio))
+                            .containsExactly(NEW_PORTFOLIO_IMAGE, SECOND_PORTFOLIO_IMAGE));
         }
 
         @Test
@@ -775,10 +859,10 @@ class EngineerServiceTest {
                     "기존 소개"
             );
             Portfolio unchangedPortfolio =
-                    portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
+                    portfolioRepository.save(createSinglePortfolio(engineer, OLD_PORTFOLIO_IMAGE));
             entityManager.flush();
-            portfolioRepository.updatePortfolioThumbnailImageIfPortfolioUnchanged(
-                    unchangedPortfolio.getPortfolioId(),
+            portfolioImageRepository.updateThumbnailImageIfImageUnchanged(
+                    unchangedPortfolio.getImages().getFirst().getPortfolioImageId(),
                     OLD_PORTFOLIO_IMAGE,
                     imageUrl("thumbnail/old-portfolio.jpg")
             );
@@ -786,7 +870,7 @@ class EngineerServiceTest {
             entityManager.clear();
 
             EngineerRequestDto request = createRequestBuilder()
-                    .portfolioImages(List.of(OLD_PORTFOLIO_IMAGE, NEW_PORTFOLIO_IMAGE))
+                    .portfolioItems(portfolioItemsFromImages(List.of(OLD_PORTFOLIO_IMAGE, NEW_PORTFOLIO_IMAGE)))
                     .phone("010-1111-2222")
                     .build();
 
@@ -799,14 +883,14 @@ class EngineerServiceTest {
             List<Portfolio> updatedPortfolios =
                     portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId());
             assertThat(updatedPortfolios)
-                    .extracting(Portfolio::getPortfolioImage)
+                    .extracting(EngineerServiceTest.this::firstPortfolioImageUrl)
                     .containsExactlyInAnyOrder(OLD_PORTFOLIO_IMAGE, NEW_PORTFOLIO_IMAGE);
             assertThat(updatedPortfolios)
-                    .filteredOn(portfolio -> portfolio.getPortfolioImage().equals(OLD_PORTFOLIO_IMAGE))
+                    .filteredOn(portfolio -> firstPortfolioImageUrl(portfolio).equals(OLD_PORTFOLIO_IMAGE))
                     .singleElement()
                     .satisfies(portfolio -> {
                         assertThat(portfolio.getPortfolioId()).isEqualTo(unchangedPortfolio.getPortfolioId());
-                        assertThat(portfolio.getPortfolioThumbnailImage())
+                        assertThat(EngineerServiceTest.this.firstPortfolioThumbnailUrl(portfolio))
                                 .isEqualTo(imageUrl("thumbnail/old-portfolio.jpg"));
                     });
         }
@@ -842,8 +926,8 @@ class EngineerServiceTest {
 
         @ParameterizedTest
         @NullAndEmptySource
-        @DisplayName("포트폴리오 이미지가 없으면 기술자 정보를 수정할 수 없다")
-        void updateEngineer_portfolioImagesAreMissing(List<String> portfolioImages) {
+        @DisplayName("포트폴리오 시공 사례가 없으면 기술자 정보를 수정할 수 없다")
+        void updateEngineer_portfolioItemsAreMissing(List<String> imageUrls) {
             // given
             Engineer engineer = saveEngineer(
                     currentUser,
@@ -851,9 +935,9 @@ class EngineerServiceTest {
                     "기존기술자",
                     "기존 소개"
             );
-            portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
+            portfolioRepository.save(createSinglePortfolio(engineer, OLD_PORTFOLIO_IMAGE));
             EngineerRequestDto request = createRequestBuilder()
-                    .portfolioImages(portfolioImages)
+                    .portfolioItems(portfolioItemsFromImages(imageUrls))
                     .phone("010-1111-2222")
                     .build();
 
@@ -864,7 +948,7 @@ class EngineerServiceTest {
                     .isEqualTo(ErrorCode.INVALID_PORTFOLIO_IMAGE);
 
             assertThat(portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId()))
-                    .extracting(Portfolio::getPortfolioImage)
+                    .extracting(EngineerServiceTest.this::firstPortfolioImageUrl)
                     .containsExactly(OLD_PORTFOLIO_IMAGE);
         }
 
@@ -878,9 +962,9 @@ class EngineerServiceTest {
                     "기존기술자",
                     "기존 소개"
             );
-            portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
+            portfolioRepository.save(createSinglePortfolio(engineer, OLD_PORTFOLIO_IMAGE));
             EngineerRequestDto request = createRequestBuilder()
-                    .portfolioImages(List.of("https://evil.example.com/portfolio.png"))
+                    .portfolioItems(portfolioItemsFromImages(List.of("https://evil.example.com/portfolio.png")))
                     .phone("010-1111-2222")
                     .build();
 
@@ -891,7 +975,7 @@ class EngineerServiceTest {
                     .isEqualTo(ErrorCode.INVALID_PORTFOLIO_IMAGE);
 
             assertThat(portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId()))
-                    .extracting(Portfolio::getPortfolioImage)
+                    .extracting(EngineerServiceTest.this::firstPortfolioImageUrl)
                     .containsExactly(OLD_PORTFOLIO_IMAGE);
         }
 
@@ -968,14 +1052,14 @@ class EngineerServiceTest {
             );
             Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
             engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
-            portfolioRepository.save(Portfolio.create(engineer, OLD_PORTFOLIO_IMAGE));
+            portfolioRepository.save(createSinglePortfolio(engineer, OLD_PORTFOLIO_IMAGE));
 
             User adminUser = saveAdminUser(900000000010L, "관리자");
             given(userService.getCurrentUser()).willReturn(adminUser);
 
             EngineerRequestDto request = createRequestBuilder()
                     .categories(List.of("타일"))
-                    .portfolioImages(List.of(NEW_PORTFOLIO_IMAGE))
+                    .portfolioItems(portfolioItemsFromImages(List.of(NEW_PORTFOLIO_IMAGE)))
                     .profileImage(NEW_PROFILE_IMAGE)
                     .introduction(" 관리자 수정 소개 ")
                     .phone("010-2222-3333")
@@ -1004,7 +1088,7 @@ class EngineerServiceTest {
                     .extracting(mapping -> mapping.getCategory().getCategoryName())
                     .containsExactly("타일");
             assertThat(updatedPortfolios)
-                    .extracting(Portfolio::getPortfolioImage)
+                    .extracting(EngineerServiceTest.this::firstPortfolioImageUrl)
                     .containsExactly(NEW_PORTFOLIO_IMAGE);
         }
 
@@ -1149,7 +1233,7 @@ class EngineerServiceTest {
             );
             Category kitchen = categoryRepository.findByCategoryName("주방").orElseThrow();
             engineerCategoryRepository.save(EngineerCategory.create(engineer, kitchen));
-            portfolioRepository.save(Portfolio.create(engineer, imageUrl("portfolio.jpg")));
+            portfolioRepository.save(createSinglePortfolio(engineer, imageUrl("portfolio.jpg")));
             User interestedUser = saveUser(900000000003L, "관심사용자");
             interestedEngineerRepository.save(InterestedEngineer.create(interestedUser, engineer));
 
@@ -1209,8 +1293,8 @@ class EngineerServiceTest {
                     EngineerCategory.create(engineer, tile)
             ));
             portfolioRepository.saveAll(List.of(
-                    Portfolio.create(engineer, PORTFOLIO_IMAGE_1),
-                    Portfolio.create(engineer, PORTFOLIO_IMAGE_2)
+                    createSinglePortfolio(engineer, PORTFOLIO_IMAGE_1),
+                    createSinglePortfolio(engineer, PORTFOLIO_IMAGE_2)
             ));
             entityManager.flush();
             entityManager.clear();
@@ -1233,8 +1317,12 @@ class EngineerServiceTest {
             assertThat(result.getStoreAddress()).isEqualTo("기존 주소");
             assertThat(result.getPhone()).isEqualTo("01011112222");
             assertThat(result.isInterested()).isFalse();
-            assertThat(result.getPortfolioImages())
-                    .containsExactly(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2);
+            assertThat(result.getPortfolioItems())
+                    .extracting("type", "images")
+                    .containsExactly(
+                            org.assertj.core.groups.Tuple.tuple(PortfolioType.SINGLE, List.of(PORTFOLIO_IMAGE_1)),
+                            org.assertj.core.groups.Tuple.tuple(PortfolioType.SINGLE, List.of(PORTFOLIO_IMAGE_2))
+                    );
         }
 
         @Test
@@ -1323,7 +1411,7 @@ class EngineerServiceTest {
                     EngineerCategory.create(engineer, kitchen)
             );
             portfolioRepository.save(
-                    Portfolio.create(engineer, imageUrl("portfolio.jpg"))
+                    createSinglePortfolio(engineer, imageUrl("portfolio.jpg"))
             );
             User interestedUser = saveUser(900000000002L, "관심사용자");
             interestedEngineerRepository.save(
@@ -2029,12 +2117,12 @@ class EngineerServiceTest {
 
     private EngineerRequestDto createRequest(
             List<String> categories,
-            List<String> portfolioImages,
+            List<String> imageUrls,
             String phone
     ) {
         return createRequestBuilder()
                 .categories(categories)
-                .portfolioImages(portfolioImages)
+                .portfolioItems(portfolioItemsFromImages(imageUrls))
                 .phone(phone)
                 .build();
     }
@@ -2042,7 +2130,7 @@ class EngineerServiceTest {
     private EngineerRequestDto.EngineerRequestDtoBuilder createRequestBuilder() {
         return EngineerRequestDto.builder()
                 .categories(List.of("주방", "타일"))
-                .portfolioImages(List.of(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2))
+                .portfolioItems(portfolioItemsFromImages(List.of(PORTFOLIO_IMAGE_1, PORTFOLIO_IMAGE_2)))
                 .introduction(" 테스트 소개 ")
                 .regionId(region.getRegionId())
                 .profileImage(" " + PROFILE_IMAGE + " ")
@@ -2051,6 +2139,47 @@ class EngineerServiceTest {
                 .phone("010-1234-5678")
                 .engineerName(" 김기술 ")
                 .headline(" 주방 시공 전문 ");
+    }
+
+    private PortfolioItemRequestDto portfolioItem(PortfolioType type, String title, List<String> images) {
+        return PortfolioItemRequestDto.builder()
+                .type(type)
+                .title(title)
+                .images(images)
+                .build();
+    }
+
+    private List<PortfolioItemRequestDto> portfolioItemsFromImages(List<String> images) {
+        if (images == null) {
+            return null;
+        }
+        return images.stream()
+                .map(image -> portfolioItem(PortfolioType.SINGLE, null, List.of(image)))
+                .toList();
+    }
+
+    private List<String> portfolioImageUrls(int count) {
+        return java.util.stream.IntStream.rangeClosed(1, count)
+                .mapToObj(index -> imageUrl("gallery-" + index + ".jpg"))
+                .toList();
+    }
+
+    private Portfolio createSinglePortfolio(Engineer engineer, String imageUrl) {
+        return Portfolio.create(engineer, PortfolioType.SINGLE, null, 0, List.of(imageUrl));
+    }
+
+    private String firstPortfolioImageUrl(Portfolio portfolio) {
+        return portfolio.getImages().getFirst().getImageUrl();
+    }
+
+    private List<String> portfolioImageUrls(Portfolio portfolio) {
+        return portfolio.getImages().stream()
+                .map(portfolioImage -> portfolioImage.getImageUrl())
+                .toList();
+    }
+
+    private String firstPortfolioThumbnailUrl(Portfolio portfolio) {
+        return portfolio.getImages().getFirst().getThumbnailImageUrl();
     }
 
     private User saveUser(Long kakaoId, String nickname) {

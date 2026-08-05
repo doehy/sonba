@@ -1,7 +1,7 @@
 package com.sonbadrim_server.domain.image.job;
 
 import com.sonbadrim_server.domain.engineer.repository.EngineerRepository;
-import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
+import com.sonbadrim_server.domain.portfolio.repository.PortfolioImageRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
@@ -28,7 +28,7 @@ public class ImageOrphanCleanupScheduler {
 
     private final S3Client s3Client;
     private final EngineerRepository engineerRepository;
-    private final PortfolioRepository portfolioRepository;
+    private final PortfolioImageRepository portfolioImageRepository;
 
     @Value("${cloudflare.r2.bucket}")
     private String bucketName;
@@ -116,8 +116,8 @@ public class ImageOrphanCleanupScheduler {
 
         List<String> profileUrls = engineerRepository.findAllUsedProfileImageUrls();
         List<String> profileThumbnailUrls = engineerRepository.findAllUsedProfileThumbnailImageUrls();
-        List<String> portfolioUrls = portfolioRepository.findAllUsedPortfolioImageUrls();
-        List<String> portfolioThumbnailUrls = portfolioRepository.findAllUsedPortfolioThumbnailImageUrls();
+        List<String> portfolioUrls = portfolioImageRepository.findAllUsedImageUrls();
+        List<String> portfolioThumbnailUrls = portfolioImageRepository.findAllUsedThumbnailImageUrls();
 
         for (String url : profileUrls) {
             String key = extractKey(url);

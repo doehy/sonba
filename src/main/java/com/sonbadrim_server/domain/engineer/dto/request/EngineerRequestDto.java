@@ -1,5 +1,6 @@
 package com.sonbadrim_server.domain.engineer.dto.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -19,9 +20,9 @@ public class EngineerRequestDto {
     @Size(max = 5, message = "시공분야는 최대 5개까지 선택 가능합니다.")
     private List<@NotBlank(message = "시공분야 값은 비어 있을 수 없습니다.") String> categories;
 
-    @NotEmpty(message = "포트폴리오 이미지는 최소 1장 이상 필요합니다.")
-    @Size(max = 6, message = "포트폴리오 이미지는 최대 6장까지 등록 가능합니다.")
-    private List<@NotBlank(message = "포트폴리오 이미지 값은 비어 있을 수 없습니다.") String> portfolioImages;
+    @NotEmpty(message = "포트폴리오는 최소 1개 이상 등록해야 합니다.")
+    @Size(max = 6, message = "포트폴리오 시공 사례는 최대 6개까지 등록 가능합니다.")
+    private List<@Valid PortfolioItemRequestDto> portfolioItems;
 
     @Size(max = 300, message = "자기소개는 300자 이하로 입력해주세요.")
     private String introduction;
