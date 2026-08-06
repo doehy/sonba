@@ -3,7 +3,6 @@ package com.sonbadrim_server.domain.user.controller;
 //import org.springframework.data.redis.core.RedisTemplate;
 import com.sonbadrim_server.domain.user.entity.User;
 import com.sonbadrim_server.domain.user.dto.request.SignupRequestDto;
-import com.sonbadrim_server.domain.user.dto.response.AuthTokenResponse;
 import com.sonbadrim_server.domain.user.service.AuthRateLimiter;
 import com.sonbadrim_server.domain.user.service.KakaoService;
 import com.sonbadrim_server.domain.user.service.UserService;
@@ -37,6 +36,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Tag(name = "Auth", description = "인증/인가 API")
 public class AuthController {
+    private static final String ACCESS_TOKEN_COOKIE = "accessToken";
+    private static final String REFRESH_TOKEN_COOKIE = "refreshToken";
     private static final String KAKAO_OAUTH_STATE_COOKIE = "kakaoOAuthState";
     private static final int OAUTH_STATE_BYTE_LENGTH = 32;
     private static final int OAUTH_STATE_MAX_AGE_SECONDS = 300;
@@ -54,6 +55,9 @@ public class AuthController {
 
     @Value("${app.frontend-url:http://localhost:5173}")
     private String frontendUrl;
+
+    @Value("${jwt.access-expiration}")
+    private long accessTokenExpiration;
 
     @Value("${jwt.refresh-expiration}")
     private long refreshTokenExpiration;
@@ -114,11 +118,11 @@ public class AuthController {
 
             // 4. JWT 토큰 생성 (Access + Refresh)
             Map<String, String> tokens = userService.generateTokenPair(user);
+            addAccessTokenCookie(response, tokens.get("accessToken"));
             addRefreshTokenCookie(response, tokens.get("refreshToken"));
 
             String redirectPath = requiresSignup ? "/signup" : "/";
-            String redirectTarget = frontendUrl + redirectPath
-                    + "#accessToken=" + URLEncoder.encode(tokens.get("accessToken"), StandardCharsets.UTF_8);
+            String redirectTarget = frontendUrl + redirectPath;
 
             response.sendRedirect(redirectTarget);
         } catch (CustomException e) {
@@ -147,9 +151,9 @@ public class AuthController {
         authRateLimiter.check(request, "refresh");
         validateRefreshOrigin(request);
         Map<String, String> tokens = userService.reissueTokenPair(refreshToken);
+        addAccessTokenCookie(response, tokens.get("accessToken"));
         addRefreshTokenCookie(response, tokens.get("refreshToken"));
-        AuthTokenResponse body = new AuthTokenResponse(tokens.get("accessToken"), null);
-        return ResponseEntity.ok(CommonResponse.success(body));
+        return ResponseEntity.ok(CommonResponse.success(null));
     }
 
     @PostMapping("/logout")
@@ -165,21 +169,31 @@ public class AuthController {
 
             // 사용자의 카카오 토큰 제거
             userService.logoutUser();
+            clearAccessTokenCookie(response);
             clearRefreshTokenCookie(response);
 
             return ResponseEntity.ok(CommonResponse.success(null));
         } catch (Exception e) {
             // 로그아웃 실패해도 200 반환 (클라이언트 토큰은 삭제되어야 함)
             log.warn("로그아웃 처리 중 오류: {}", e.getMessage());
+            clearAccessTokenCookie(response);
             clearRefreshTokenCookie(response);
             return ResponseEntity.ok(CommonResponse.success(null));
         }
     }
 
+    private void addAccessTokenCookie(HttpServletResponse response, String accessToken) {
+        addTokenCookie(response, ACCESS_TOKEN_COOKIE, accessToken, accessTokenExpiration);
+    }
+
     private void addRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
+        addTokenCookie(response, REFRESH_TOKEN_COOKIE, refreshToken, refreshTokenExpiration);
+    }
+
+    private void addTokenCookie(HttpServletResponse response, String name, String token, long expirationMillis) {
         StringBuilder cookie = new StringBuilder();
-        cookie.append("refreshToken=").append(refreshToken).append("; ");
-        cookie.append("Max-Age=").append(Duration.ofMillis(refreshTokenExpiration).toSeconds()).append("; ");
+        cookie.append(name).append("=").append(token).append("; ");
+        cookie.append("Max-Age=").append(Duration.ofMillis(expirationMillis).toSeconds()).append("; ");
         cookie.append("Path=/; HttpOnly; SameSite=").append(cookieSameSite).append(";");
         if (cookieSecure) {
             cookie.append(" Secure;");
@@ -187,8 +201,17 @@ public class AuthController {
         response.addHeader("Set-Cookie", cookie.toString());
     }
 
+    private void clearAccessTokenCookie(HttpServletResponse response) {
+        clearTokenCookie(response, ACCESS_TOKEN_COOKIE);
+    }
+
     private void clearRefreshTokenCookie(HttpServletResponse response) {
-        StringBuilder cookie = new StringBuilder("refreshToken=; Max-Age=0; Path=/; HttpOnly; SameSite=")
+        clearTokenCookie(response, REFRESH_TOKEN_COOKIE);
+    }
+
+    private void clearTokenCookie(HttpServletResponse response, String name) {
+        StringBuilder cookie = new StringBuilder(name)
+                .append("=; Max-Age=0; Path=/; HttpOnly; SameSite=")
                 .append(cookieSameSite)
                 .append(";");
         if (cookieSecure) {

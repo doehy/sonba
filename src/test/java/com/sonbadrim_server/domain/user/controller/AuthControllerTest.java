@@ -36,7 +36,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @AutoConfigureMockMvc(addFilters = false)
@@ -45,6 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "kakao.client.id=test-client-id",
         "kakao.redirect.uri=http://localhost:8080/auth/kakao/callback",
         "app.frontend-url=http://localhost:5173",
+        "jwt.access-expiration=3600000",
         "jwt.refresh-expiration=1209600000",
         "app.cookie-secure=false",
         "app.cookie-same-site=Lax"
@@ -93,7 +93,7 @@ class AuthControllerTest {
         }
 
         @Test
-        @DisplayName("신규 카카오 사용자는 refresh cookie를 받고 회원가입 화면으로 이동한다")
+        @DisplayName("신규 카카오 사용자는 토큰 cookie를 받고 회원가입 화면으로 이동한다")
         void kakaoLogin_newUserRedirectToSignup() throws Exception {
             // given
             User user = createUser(900000000001L, UserStatus.GUEST, "kakao-token");
@@ -114,7 +114,9 @@ class AuthControllerTest {
                             .param("state", "oauth-state")
                             .cookie(new Cookie("kakaoOAuthState", "oauth-state")))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrlPattern("http://localhost:5173/signup#accessToken=*"))
+                    .andExpect(header().string("Location", "http://localhost:5173/signup"))
+                    .andExpect(cookie().value("accessToken", "access-token"))
+                    .andExpect(cookie().httpOnly("accessToken", true))
                     .andExpect(cookie().value("refreshToken", "refresh-token"))
                     .andExpect(cookie().httpOnly("refreshToken", true))
                     .andExpect(cookie().value("kakaoOAuthState", ""))
@@ -122,7 +124,7 @@ class AuthControllerTest {
         }
 
         @Test
-        @DisplayName("기존 카카오 사용자는 refresh cookie를 받고 메인 화면으로 이동한다")
+        @DisplayName("기존 카카오 사용자는 토큰 cookie를 받고 메인 화면으로 이동한다")
         void kakaoLogin_existingUserRedirectToMain() throws Exception {
             // given
             User user = createUser(900000000002L, UserStatus.ACTIVE, "kakao-token");
@@ -143,7 +145,9 @@ class AuthControllerTest {
                             .param("state", "oauth-state")
                             .cookie(new Cookie("kakaoOAuthState", "oauth-state")))
                     .andExpect(status().is3xxRedirection())
-                    .andExpect(redirectedUrlPattern("http://localhost:5173/#accessToken=*"))
+                    .andExpect(header().string("Location", "http://localhost:5173/"))
+                    .andExpect(cookie().value("accessToken", "access-token"))
+                    .andExpect(cookie().httpOnly("accessToken", true))
                     .andExpect(cookie().value("refreshToken", "refresh-token"))
                     .andExpect(cookie().httpOnly("refreshToken", true))
                     .andExpect(cookie().value("kakaoOAuthState", ""))
@@ -232,7 +236,7 @@ class AuthControllerTest {
     class Refresh {
 
         @Test
-        @DisplayName("허용된 Origin과 refresh cookie로 access token을 재발급한다")
+        @DisplayName("허용된 Origin과 refresh cookie로 토큰 cookie를 재발급한다")
         void refresh_success() throws Exception {
             // given
             given(userService.reissueTokenPair("old-refresh-token"))
@@ -244,9 +248,11 @@ class AuthControllerTest {
                             .header("Origin", "http://localhost:5173"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
-                    .andExpect(jsonPath("$.data.accessToken").value("new-access-token"))
-                    .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
-                    .andExpect(header().string("Set-Cookie", containsString("refreshToken=new-refresh-token")));
+                    .andExpect(jsonPath("$.data").doesNotExist())
+                    .andExpect(cookie().value("accessToken", "new-access-token"))
+                    .andExpect(cookie().httpOnly("accessToken", true))
+                    .andExpect(cookie().value("refreshToken", "new-refresh-token"))
+                    .andExpect(cookie().httpOnly("refreshToken", true));
         }
 
         @Test
@@ -274,8 +280,10 @@ class AuthControllerTest {
                             .header("Referer", "http://localhost:5173/signup?step=profile"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
-                    .andExpect(jsonPath("$.data.accessToken").value("new-access-token"))
-                    .andExpect(header().string("Set-Cookie", containsString("refreshToken=new-refresh-token")));
+                    .andExpect(jsonPath("$.data").doesNotExist())
+                    .andExpect(cookie().value("accessToken", "new-access-token"))
+                    .andExpect(cookie().value("refreshToken", "new-refresh-token"))
+                    .andExpect(cookie().httpOnly("refreshToken", true));
         }
 
         @Test
@@ -343,6 +351,8 @@ class AuthControllerTest {
             mockMvc.perform(post("/auth/logout"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(cookie().value("accessToken", ""))
+                    .andExpect(cookie().maxAge("accessToken", 0))
                     .andExpect(cookie().value("refreshToken", ""))
                     .andExpect(cookie().maxAge("refreshToken", 0));
 
@@ -361,6 +371,8 @@ class AuthControllerTest {
             mockMvc.perform(post("/auth/logout"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(cookie().value("accessToken", ""))
+                    .andExpect(cookie().maxAge("accessToken", 0))
                     .andExpect(cookie().value("refreshToken", ""))
                     .andExpect(cookie().maxAge("refreshToken", 0));
         }
