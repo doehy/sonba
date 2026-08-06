@@ -45,7 +45,8 @@ public class UserController {
                 "userId", currentUser.getUserId(),
                 "kakaoId", currentUser.getKakaoId(),
                 "nickname", currentUser.getNickname(),
-                "status", currentUser.getStatus()
+                "status", currentUser.getStatus(),
+                "role", currentUser.getRole()
         );
 
         return ResponseEntity.ok(CommonResponse.success(userInfo));
