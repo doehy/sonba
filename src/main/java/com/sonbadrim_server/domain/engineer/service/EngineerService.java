@@ -30,10 +30,12 @@ import com.sonbadrim_server.domain.region.repository.RegionRepository;
 import com.sonbadrim_server.domain.user.entity.User;
 import com.sonbadrim_server.domain.user.entity.UserRole;
 import com.sonbadrim_server.domain.user.service.UserService;
+import com.sonbadrim_server.global.config.CacheConfig;
 import com.sonbadrim_server.global.exception.CustomException;
 import com.sonbadrim_server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -78,6 +80,7 @@ public class EngineerService {
      * 기술자 등록하기
      * @return EngineerCreateResponse
      */
+    @CacheEvict(cacheNames = CacheConfig.SEARCH_ENGINEERS_CACHE, allEntries = true)
     public EngineerCreateResponse registerEngineer(EngineerRequestDto request) {
         User currentUser = userService.getCurrentUser();
 
@@ -117,6 +120,7 @@ public class EngineerService {
      * 관리자가 수동으로 기술자 프로필을 등록한다.
      * @return EngineerCreateResponse
      */
+    @CacheEvict(cacheNames = CacheConfig.SEARCH_ENGINEERS_CACHE, allEntries = true)
     public EngineerCreateResponse registerAdminCreatedEngineer(EngineerRequestDto request) {
         validateAdmin(userService.getCurrentUser());
 
@@ -179,6 +183,7 @@ public class EngineerService {
      * 기술자 정보 수정
      * @return void
      */
+    @CacheEvict(cacheNames = CacheConfig.SEARCH_ENGINEERS_CACHE, allEntries = true)
     public void updateEngineer(Long engineerId, EngineerRequestDto request) {
         User currentUser = userService.getCurrentUser();
 
@@ -194,6 +199,7 @@ public class EngineerService {
      * 관리자가 기술자 정보를 수정한다.
      * @return void
      */
+    @CacheEvict(cacheNames = CacheConfig.SEARCH_ENGINEERS_CACHE, allEntries = true)
     public void updateEngineerByAdmin(Long engineerId, EngineerRequestDto request) {
         validateAdmin(userService.getCurrentUser());
 
@@ -292,6 +298,7 @@ public class EngineerService {
      * 기술자 삭제
      * @return void
      */
+    @CacheEvict(cacheNames = CacheConfig.SEARCH_ENGINEERS_CACHE, allEntries = true)
     public void deleteEngineer(Long engineerId) {
         User currentUser = userService.getCurrentUser();
 
@@ -309,6 +316,7 @@ public class EngineerService {
      * 관리자가 기술자 정보를 삭제한다.
      * @return void
      */
+    @CacheEvict(cacheNames = CacheConfig.SEARCH_ENGINEERS_CACHE, allEntries = true)
     public void deleteEngineerByAdmin(Long engineerId) {
         validateAdmin(userService.getCurrentUser());
 
