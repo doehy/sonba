@@ -3,6 +3,7 @@ package com.sonbadrim_server.domain.engineer.dto.request;
 import com.sonbadrim_server.domain.portfolio.entity.PortfolioType;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import lombok.AccessLevel;
@@ -16,6 +17,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class PortfolioItemRequestDto {
+
+    @Positive(message = "포트폴리오 ID는 양수여야 합니다.")
+    private Long portfolioId;
 
     @NotNull(message = "포트폴리오 타입은 필수입니다.")
     private PortfolioType type;

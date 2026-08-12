@@ -65,6 +65,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -870,7 +872,15 @@ class EngineerServiceTest {
             entityManager.clear();
 
             EngineerRequestDto request = createRequestBuilder()
-                    .portfolioItems(portfolioItemsFromImages(List.of(OLD_PORTFOLIO_IMAGE, NEW_PORTFOLIO_IMAGE)))
+                    .portfolioItems(List.of(
+                            portfolioItem(
+                                    unchangedPortfolio.getPortfolioId(),
+                                    PortfolioType.SINGLE,
+                                    null,
+                                    List.of(OLD_PORTFOLIO_IMAGE)
+                            ),
+                            portfolioItem(PortfolioType.SINGLE, null, List.of(NEW_PORTFOLIO_IMAGE))
+                    ))
                     .phone("010-1111-2222")
                     .build();
 
@@ -893,6 +903,61 @@ class EngineerServiceTest {
                         assertThat(EngineerServiceTest.this.firstPortfolioThumbnailUrl(portfolio))
                                 .isEqualTo(imageUrl("thumbnail/old-portfolio.jpg"));
                     });
+        }
+
+        @Test
+        @DisplayName("포트폴리오 제목만 수정하면 이미지와 썸네일을 유지하고 원격 이미지 검증을 다시 하지 않는다")
+        void updateEngineer_changesOnlyPortfolioTitle() {
+            // given
+            Engineer engineer = saveEngineer(
+                    currentUser,
+                    "01011112222",
+                    "기존기술자",
+                    "기존 소개"
+            );
+            Portfolio portfolio = portfolioRepository.save(
+                    Portfolio.create(
+                            engineer,
+                            PortfolioType.SINGLE,
+                            "기존 제목",
+                            0,
+                            List.of(OLD_PORTFOLIO_IMAGE)
+                    )
+            );
+            entityManager.flush();
+            portfolioImageRepository.updateThumbnailImageIfImageUnchanged(
+                    portfolio.getImages().getFirst().getPortfolioImageId(),
+                    OLD_PORTFOLIO_IMAGE,
+                    imageUrl("thumbnail/old-portfolio.jpg")
+            );
+            entityManager.flush();
+            entityManager.clear();
+
+            EngineerRequestDto request = createRequestBuilder()
+                    .profileImage(OLD_PROFILE_IMAGE)
+                    .phone("010-1111-2222")
+                    .portfolioItems(List.of(portfolioItem(
+                            portfolio.getPortfolioId(),
+                            PortfolioType.SINGLE,
+                            "새 제목",
+                            List.of(OLD_PORTFOLIO_IMAGE)
+                    )))
+                    .build();
+
+            // when
+            engineerService.updateEngineer(engineer.getEngineerId(), request);
+            entityManager.flush();
+            entityManager.clear();
+
+            // then
+            Portfolio updatedPortfolio = portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId())
+                    .getFirst();
+            assertThat(updatedPortfolio.getPortfolioId()).isEqualTo(portfolio.getPortfolioId());
+            assertThat(updatedPortfolio.getTitle()).isEqualTo("새 제목");
+            assertThat(updatedPortfolio.getImages().getFirst().getImageUrl()).isEqualTo(OLD_PORTFOLIO_IMAGE);
+            assertThat(updatedPortfolio.getImages().getFirst().getThumbnailImageUrl())
+                    .isEqualTo(imageUrl("thumbnail/old-portfolio.jpg"));
+            verify(s3Client, never()).getObject(any(GetObjectRequest.class), any(ResponseTransformer.class));
         }
 
         @ParameterizedTest
@@ -2142,7 +2207,17 @@ class EngineerServiceTest {
     }
 
     private PortfolioItemRequestDto portfolioItem(PortfolioType type, String title, List<String> images) {
+        return portfolioItem(null, type, title, images);
+    }
+
+    private PortfolioItemRequestDto portfolioItem(
+            Long portfolioId,
+            PortfolioType type,
+            String title,
+            List<String> images
+    ) {
         return PortfolioItemRequestDto.builder()
+                .portfolioId(portfolioId)
                 .type(type)
                 .title(title)
                 .images(images)

@@ -52,4 +52,8 @@ public class PortfolioImage extends BaseTimeEntity {
                 ? thumbnailImageUrl
                 : imageUrl;
     }
+
+    public void updateSortOrder(int sortOrder) {
+        this.sortOrder = sortOrder;
+    }
 }

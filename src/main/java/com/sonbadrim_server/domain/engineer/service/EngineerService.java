@@ -22,6 +22,7 @@ import com.sonbadrim_server.domain.image.event.ImageUploadedEvent;
 import com.sonbadrim_server.domain.image.entity.ImageUsageType;
 import com.sonbadrim_server.domain.image.service.ImagePolicyValidator;
 import com.sonbadrim_server.domain.portfolio.entity.Portfolio;
+import com.sonbadrim_server.domain.portfolio.entity.PortfolioImage;
 import com.sonbadrim_server.domain.portfolio.entity.PortfolioType;
 import com.sonbadrim_server.domain.portfolio.repository.PortfolioRepository;
 import com.sonbadrim_server.domain.region.entity.Region;
@@ -44,10 +45,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -91,7 +95,7 @@ public class EngineerService {
 
         List<Category> categories = validateAndGetCategories(request.getCategories());
         List<NormalizedPortfolioItem> normalizedPortfolioItems =
-                validateAndNormalizePortfolioItems(request.getPortfolioItems());
+                validateNewPortfolioItems(request.getPortfolioItems());
         String normalizedProfileImage = imagePolicyValidator.validateProfileImageUrl(request.getProfileImage());
 
         Engineer engineer = Engineer.create(
@@ -126,7 +130,7 @@ public class EngineerService {
 
         List<Category> categories = validateAndGetCategories(request.getCategories());
         List<NormalizedPortfolioItem> normalizedPortfolioItems =
-                validateAndNormalizePortfolioItems(request.getPortfolioItems());
+                validateNewPortfolioItems(request.getPortfolioItems());
         String normalizedProfileImage = imagePolicyValidator.validateProfileImageUrl(request.getProfileImage());
 
         Engineer engineer = Engineer.createAdminCreated(
@@ -143,6 +147,9 @@ public class EngineerService {
         return saveEngineerWithRelations(engineer, categories, normalizedPortfolioItems, normalizedProfileImage);
     }
 
+    /**
+     * 기술자와 시공 분야, 포트폴리오를 함께 저장하고 이미지 썸네일 생성 이벤트를 발행한다.
+     */
     private EngineerCreateResponse saveEngineerWithRelations(
             Engineer engineer,
             List<Category> categories,
@@ -159,8 +166,11 @@ public class EngineerService {
         List<Portfolio> portfolios = createPortfolios(engineer, normalizedPortfolioItems);
 
         List<Portfolio> savedPortfolios = portfolioRepository.saveAll(portfolios);
+        portfolioRepository.flush();
         publishProfileImageUploadedEvent(engineer.getEngineerId(), normalizedProfileImage);
-        publishPortfolioImageUploadedEvents(savedPortfolios);
+        publishPortfolioImageUploadedEvents(savedPortfolios.stream()
+                .flatMap(portfolio -> portfolio.getImages().stream())
+                .toList());
 
         return new EngineerCreateResponse(engineer.getEngineerId());
     }
@@ -193,6 +203,9 @@ public class EngineerService {
         updateEngineerInfo(engineer, request);
     }
 
+    /**
+     * 기술자 기본 정보와 시공 분야, 포트폴리오 변경 사항을 하나의 트랜잭션에서 반영한다.
+     */
     private void updateEngineerInfo(Engineer engineer, EngineerRequestDto request) {
         Region region = regionRepository.findById(request.getRegionId())
                 .orElseThrow(() -> new CustomException(ErrorCode.REGION_NOT_FOUND));
@@ -209,8 +222,11 @@ public class EngineerService {
         List<Category> categories = validateAndGetCategories(request.getCategories());
         List<NormalizedPortfolioItem> normalizedPortfolioItems =
                 validateAndNormalizePortfolioItems(request.getPortfolioItems());
-        String normalizedProfileImage = imagePolicyValidator.validateProfileImageUrl(request.getProfileImage());
-        boolean profileImageChanged = !Objects.equals(engineer.getProfileImage(), normalizedProfileImage);
+        String requestedProfileImage = trimToNull(request.getProfileImage());
+        boolean profileImageChanged = !Objects.equals(engineer.getProfileImage(), requestedProfileImage);
+        String normalizedProfileImage = profileImageChanged
+                ? imagePolicyValidator.validateProfileImageUrl(requestedProfileImage)
+                : engineer.getProfileImage();
 
         engineer.updateInfo(
                 request.getEngineerName().trim(),
@@ -224,7 +240,7 @@ public class EngineerService {
         );
 
         replaceCategories(engineer, categories);
-        replacePortfolioItems(engineer, normalizedPortfolioItems);
+        synchronizePortfolioItems(engineer, normalizedPortfolioItems);
         if (profileImageChanged) {
             publishProfileImageUploadedEvent(engineer.getEngineerId(), normalizedProfileImage);
         }
@@ -302,6 +318,9 @@ public class EngineerService {
         deleteEngineerWithRelations(engineer);
     }
 
+    /**
+     * 기술자와 연결된 관심 목록, 시공 분야, 포트폴리오를 정리한 뒤 기술자를 삭제한다.
+     */
     private void deleteEngineerWithRelations(Engineer engineer) {
         interestedEngineerRepository.deleteAllByEngineer(engineer);
         engineerCategoryRepository.deleteAllByEngineer(engineer);
@@ -476,24 +495,36 @@ public class EngineerService {
         return new PhoneDuplicateCheckResponseDto(duplicated);
     }
 
+    /**
+     * 현재 사용자가 해당 기술자 프로필의 소유자인지 검증한다.
+     */
     private void validateOwner(Engineer engineer, User currentUser) {
         if (!isOwnedBy(engineer, currentUser)) {
             throw new CustomException(ErrorCode.CANNOT_MODIFY_ENGINEER);
         }
     }
 
+    /**
+     * 기술자 프로필과 사용자가 소유 관계로 연결되어 있는지 확인한다.
+     */
     private boolean isOwnedBy(Engineer engineer, User user) {
         return engineer.getUser() != null
                 && user != null
                 && engineer.getUser().getUserId().equals(user.getUserId());
     }
 
+    /**
+     * 해당 사용자가 기술자 프로필 연결을 요청한 당사자인지 확인한다.
+     */
     private boolean isClaimRequestedBy(Engineer engineer, User user) {
         return engineer.getClaimRequester() != null
                 && user != null
                 && engineer.getClaimRequester().getUserId().equals(user.getUserId());
     }
 
+    /**
+     * 기술자 프로필이 관리자 승인 또는 거절을 기다리는 연결 요청 상태인지 검증한다.
+     */
     private void validateClaimRequestPending(Engineer engineer) {
         if (engineer.getUser() != null || engineer.getClaimStatus() == EngineerClaimStatus.APPROVED) {
             throw new CustomException(ErrorCode.ENGINEER_ALREADY_CLAIMED);
@@ -504,12 +535,18 @@ public class EngineerService {
         }
     }
 
+    /**
+     * 현재 사용자가 관리자 권한을 가지고 있는지 검증한다.
+     */
     private void validateAdmin(User user) {
         if (user.getRole() != UserRole.ADMIN) {
             throw new CustomException(ErrorCode.FORBIDDEN);
         }
     }
 
+    /**
+     * 요청받은 시공 분야명을 정리하고 실제로 존재하는 카테고리 엔티티로 변환한다.
+     */
     private List<Category> validateAndGetCategories(List<String> categoryNames) {
         if (categoryNames == null || categoryNames.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_ENGINEER_CATEGORY);
@@ -534,6 +571,9 @@ public class EngineerService {
         return categories;
     }
 
+    /**
+     * 포트폴리오 요청 목록의 필수값과 타입별 이미지 개수를 검증하고 값을 정규화한다.
+     */
     private List<NormalizedPortfolioItem> validateAndNormalizePortfolioItems(List<PortfolioItemRequestDto> portfolioItems) {
         if (portfolioItems == null || portfolioItems.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
@@ -550,6 +590,31 @@ public class EngineerService {
         return normalizedPortfolioItems;
     }
 
+    /**
+     * 신규 등록용 포트폴리오인지 확인하고 모든 신규 이미지의 실제 파일 내용을 검증한다.
+     */
+    private List<NormalizedPortfolioItem> validateNewPortfolioItems(List<PortfolioItemRequestDto> portfolioItems) {
+        List<NormalizedPortfolioItem> normalizedPortfolioItems =
+                validateAndNormalizePortfolioItems(portfolioItems);
+
+        return normalizedPortfolioItems.stream()
+                .map(portfolioItem -> {
+                    if (portfolioItem.portfolioId() != null) {
+                        throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+                    }
+                    return new NormalizedPortfolioItem(
+                            null,
+                            portfolioItem.type(),
+                            portfolioItem.title(),
+                            validateNewPortfolioImageUrls(portfolioItem.images())
+                    );
+                })
+                .toList();
+    }
+
+    /**
+     * 포트폴리오 한 건의 제목과 이미지 URL을 정리하고 타입에 맞는 이미지 개수를 검증한다.
+     */
     private NormalizedPortfolioItem validateAndNormalizePortfolioItem(PortfolioItemRequestDto portfolioItem) {
         if (portfolioItem == null || portfolioItem.getType() == null) {
             throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
@@ -559,12 +624,16 @@ public class EngineerService {
         validatePortfolioImageCount(portfolioItem.getType(), normalizedImages.size());
 
         return new NormalizedPortfolioItem(
+                portfolioItem.getPortfolioId(),
                 portfolioItem.getType(),
                 trimToNull(portfolioItem.getTitle()),
                 normalizedImages
         );
     }
 
+    /**
+     * 이미지 URL의 공백과 중복을 제거하고 유효한 URL 목록으로 정리한다.
+     */
     private List<String> normalizePortfolioImageUrls(List<String> imageUrls) {
         if (imageUrls == null || imageUrls.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
@@ -573,7 +642,6 @@ public class EngineerService {
         List<String> normalizedImageUrls = imageUrls.stream()
                 .map(this::trimToNull)
                 .filter(image -> image != null)
-                .map(imagePolicyValidator::validatePortfolioImageUrl)
                 .distinct()
                 .toList();
 
@@ -584,6 +652,18 @@ public class EngineerService {
         return normalizedImageUrls;
     }
 
+    /**
+     * 새로 추가되는 포트폴리오 이미지가 R2에 존재하는 실제 이미지 파일인지 검증한다.
+     */
+    private List<String> validateNewPortfolioImageUrls(List<String> imageUrls) {
+        return imageUrls.stream()
+                .map(imagePolicyValidator::validatePortfolioImageUrl)
+                .toList();
+    }
+
+    /**
+     * 포트폴리오 타입별로 허용되는 이미지 개수인지 검증한다.
+     */
     private void validatePortfolioImageCount(PortfolioType type, int imageCount) {
         switch (type) {
             case SINGLE -> {
@@ -604,6 +684,9 @@ public class EngineerService {
         }
     }
 
+    /**
+     * 기술자의 기존 시공 분야 연결을 요청받은 시공 분야 목록으로 교체한다.
+     */
     private void replaceCategories(Engineer engineer, List<Category> categories) {
         engineerCategoryRepository.deleteAllByEngineer(engineer);
         engineerCategoryRepository.flush();
@@ -615,38 +698,91 @@ public class EngineerService {
         engineerCategoryRepository.saveAll(mappings);
     }
 
-    private void replacePortfolioItems(Engineer engineer, List<NormalizedPortfolioItem> portfolioItems) {
+    /**
+     * 포트폴리오 ID를 기준으로 기존 항목은 수정하고 새 항목은 추가하며 빠진 항목은 삭제한다.
+     */
+    private void synchronizePortfolioItems(Engineer engineer, List<NormalizedPortfolioItem> portfolioItems) {
         List<Portfolio> existingPortfolios =
                 portfolioRepository.findByEngineer_EngineerId(engineer.getEngineerId());
-        List<NormalizedPortfolioItem> requestedPortfolioItems = portfolioItems;
+        Map<Long, Portfolio> existingPortfolioMap = existingPortfolios.stream()
+                .collect(Collectors.toMap(Portfolio::getPortfolioId, portfolio -> portfolio));
+        Set<Long> requestedPortfolioIds = new HashSet<>();
+        List<Portfolio> portfoliosToCreate = new ArrayList<>();
+        List<PortfolioImage> newPortfolioImages = new ArrayList<>();
+
+        for (int portfolioIndex = 0; portfolioIndex < portfolioItems.size(); portfolioIndex++) {
+            NormalizedPortfolioItem portfolioItem = portfolioItems.get(portfolioIndex);
+            if (portfolioItem.portfolioId() == null) {
+                List<String> validatedImageUrls = validateNewPortfolioImageUrls(portfolioItem.images());
+                Portfolio portfolio = Portfolio.create(
+                        engineer,
+                        portfolioItem.type(),
+                        portfolioItem.title(),
+                        portfolioIndex,
+                        validatedImageUrls
+                );
+                portfoliosToCreate.add(portfolio);
+                newPortfolioImages.addAll(portfolio.getImages());
+                continue;
+            }
+
+            if (!requestedPortfolioIds.add(portfolioItem.portfolioId())) {
+                throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+            }
+
+            Portfolio portfolio = existingPortfolioMap.get(portfolioItem.portfolioId());
+            if (portfolio == null) {
+                throw new CustomException(ErrorCode.INVALID_PORTFOLIO_IMAGE);
+            }
+
+            portfolio.update(portfolioItem.type(), portfolioItem.title(), portfolioIndex);
+            synchronizePortfolioImages(portfolio, portfolioItem.images(), newPortfolioImages);
+        }
 
         List<Portfolio> portfoliosToDelete = existingPortfolios.stream()
-                .filter(portfolio -> !requestedPortfolioItems.contains(toNormalizedPortfolioItem(portfolio)))
+                .filter(portfolio -> !requestedPortfolioIds.contains(portfolio.getPortfolioId()))
                 .toList();
         if (!portfoliosToDelete.isEmpty()) {
             portfolioRepository.deleteAll(portfoliosToDelete);
-            portfolioRepository.flush();
+        }
+        if (!portfoliosToCreate.isEmpty()) {
+            portfolioRepository.saveAll(portfoliosToCreate);
         }
 
-        List<Portfolio> portfoliosToCreate = IntStream.range(0, portfolioItems.size())
-                .filter(index -> existingPortfolios.stream()
-                        .noneMatch(portfolio -> toNormalizedPortfolioItem(portfolio).equals(requestedPortfolioItems.get(index))))
-                .mapToObj(index -> {
-                    NormalizedPortfolioItem portfolioItem = portfolioItems.get(index);
-                    return Portfolio.create(
-                            engineer,
-                            portfolioItem.type(),
-                            portfolioItem.title(),
-                            index,
-                            portfolioItem.images()
-                    );
-                })
-                .toList();
-
-        List<Portfolio> savedPortfolios = portfolioRepository.saveAll(portfoliosToCreate);
-        publishPortfolioImageUploadedEvents(savedPortfolios);
+        portfolioRepository.flush();
+        publishPortfolioImageUploadedEvents(newPortfolioImages);
     }
 
+    /**
+     * 기존 포트폴리오의 이미지 URL을 기준으로 유지, 순서 변경, 추가, 삭제를 차등 반영한다.
+     */
+    private void synchronizePortfolioImages(
+            Portfolio portfolio,
+            List<String> requestedImageUrls,
+            List<PortfolioImage> newPortfolioImages
+    ) {
+        Set<String> requestedImageUrlSet = new HashSet<>(requestedImageUrls);
+        portfolio.removeImagesNotIn(requestedImageUrlSet);
+
+        Map<String, PortfolioImage> existingImageMap = portfolio.getImages().stream()
+                .collect(Collectors.toMap(PortfolioImage::getImageUrl, portfolioImage -> portfolioImage));
+
+        for (int imageIndex = 0; imageIndex < requestedImageUrls.size(); imageIndex++) {
+            String requestedImageUrl = requestedImageUrls.get(imageIndex);
+            PortfolioImage existingImage = existingImageMap.get(requestedImageUrl);
+            if (existingImage != null) {
+                existingImage.updateSortOrder(imageIndex);
+                continue;
+            }
+
+            String validatedImageUrl = imagePolicyValidator.validatePortfolioImageUrl(requestedImageUrl);
+            newPortfolioImages.add(portfolio.addImage(validatedImageUrl, imageIndex));
+        }
+    }
+
+    /**
+     * 정규화된 포트폴리오 요청 목록을 저장 가능한 포트폴리오 엔티티 목록으로 변환한다.
+     */
     private List<Portfolio> createPortfolios(Engineer engineer, List<NormalizedPortfolioItem> portfolioItems) {
         return IntStream.range(0, portfolioItems.size())
                 .mapToObj(index -> {
@@ -662,18 +798,9 @@ public class EngineerService {
                 .toList();
     }
 
-    private NormalizedPortfolioItem toNormalizedPortfolioItem(Portfolio portfolio) {
-        List<String> images = portfolio.getImages().stream()
-                .map(portfolioImage -> portfolioImage.getImageUrl())
-                .toList();
-
-        return new NormalizedPortfolioItem(
-                portfolio.getType(),
-                portfolio.getTitle(),
-                images
-        );
-    }
-
+    /**
+     * 프로필 이미지가 존재하면 비동기 썸네일 생성을 위한 업로드 이벤트를 발행한다.
+     */
     private void publishProfileImageUploadedEvent(Long engineerId, String profileImageUrl) {
         if (profileImageUrl != null && !profileImageUrl.isBlank()) {
             eventPublisher.publishEvent(new ImageUploadedEvent(
@@ -684,10 +811,11 @@ public class EngineerService {
         }
     }
 
-    private void publishPortfolioImageUploadedEvents(List<Portfolio> portfolios) {
-        portfolios.stream()
-                .filter(portfolio -> portfolio.getPortfolioId() != null)
-                .flatMap(portfolio -> portfolio.getImages().stream())
+    /**
+     * 새로 저장된 포트폴리오 이미지마다 비동기 썸네일 생성 이벤트를 발행한다.
+     */
+    private void publishPortfolioImageUploadedEvents(List<PortfolioImage> portfolioImages) {
+        portfolioImages.stream()
                 .filter(portfolioImage -> portfolioImage.getPortfolioImageId() != null)
                 .filter(portfolioImage -> portfolioImage.getImageUrl() != null && !portfolioImage.getImageUrl().isBlank())
                 .forEach(portfolioImage -> eventPublisher.publishEvent(
@@ -699,6 +827,9 @@ public class EngineerService {
                 ));
     }
 
+    /**
+     * 문자열 앞뒤 공백을 제거하고 내용이 없으면 null로 변환한다.
+     */
     private String trimToNull(String value) {
         if (value == null) {
             return null;
@@ -707,6 +838,9 @@ public class EngineerService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    /**
+     * 전화번호에서 숫자만 추출하고 국내 휴대전화 번호 형식인지 검증한다.
+     */
     private String normalizePhone(String phone) {
         if (phone == null || phone.isBlank()) {
             throw new CustomException(ErrorCode.INVALID_PHONE_NUMBER);
@@ -721,6 +855,9 @@ public class EngineerService {
         return digits;
     }
 
+    /**
+     * 기술자 ID별 시공 분야명 목록을 한 번에 조회해 Map으로 구성한다.
+     */
     private Map<Long, List<String>> getCategoryMap(List<Long> engineerIds) {
         if (engineerIds.isEmpty()) {
             return Collections.emptyMap();
@@ -739,6 +876,9 @@ public class EngineerService {
                 ));
     }
 
+    /**
+     * 목록 화면용 자기소개를 최대 100자로 잘라 반환한다.
+     */
     private String truncateIntroduction(String introduction) {
         if (introduction == null || introduction.isBlank()) {
             return "";
@@ -752,6 +892,9 @@ public class EngineerService {
         return trimmed.substring(0, 100) + "...";
     }
 
+    /**
+     * 현재 인증 정보에서 사용자 ID를 꺼내며 비로그인 또는 잘못된 인증 정보이면 null을 반환한다.
+     */
     private Long getCurrentUserIdOrNull() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null
@@ -768,6 +911,7 @@ public class EngineerService {
     }
 
     private record NormalizedPortfolioItem(
+            Long portfolioId,
             PortfolioType type,
             String title,
             List<String> images

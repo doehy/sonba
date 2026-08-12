@@ -13,10 +13,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import com.sonbadrim_server.global.BaseTimeEntity;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -47,6 +49,7 @@ public class Portfolio extends BaseTimeEntity {
     private int sortOrder;
 
     @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("sortOrder ASC, portfolioImageId ASC")
     private List<PortfolioImage> images = new ArrayList<>();
 
     public static Portfolio create(
@@ -63,9 +66,25 @@ public class Portfolio extends BaseTimeEntity {
         portfolio.sortOrder = sortOrder;
         if (imageUrls != null) {
             for (int i = 0; i < imageUrls.size(); i++) {
-                portfolio.images.add(PortfolioImage.create(portfolio, imageUrls.get(i), i));
+                portfolio.addImage(imageUrls.get(i), i);
             }
         }
         return portfolio;
+    }
+
+    public void update(PortfolioType type, String title, int sortOrder) {
+        this.type = type;
+        this.title = title;
+        this.sortOrder = sortOrder;
+    }
+
+    public PortfolioImage addImage(String imageUrl, int sortOrder) {
+        PortfolioImage portfolioImage = PortfolioImage.create(this, imageUrl, sortOrder);
+        images.add(portfolioImage);
+        return portfolioImage;
+    }
+
+    public void removeImagesNotIn(Set<String> requestedImageUrls) {
+        images.removeIf(image -> !requestedImageUrls.contains(image.getImageUrl()));
     }
 }
