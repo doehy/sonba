@@ -18,7 +18,7 @@ spring:
 logging:
   level:
     root: warn
-    com.sonbadrim_server: info
+    com.sonbadream_server: info
 
 jwt:
   secret: test-secret-key-for-jwt-signing-must-be-long-enough-1234567890

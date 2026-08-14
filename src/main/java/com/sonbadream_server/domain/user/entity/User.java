@@ -1,0 +1,141 @@
+package com.sonbadream_server.domain.user.entity;
+
+import com.sonbadream_server.domain.block.entity.Block;
+import com.sonbadream_server.domain.engineer.entity.Engineer;
+import com.sonbadream_server.domain.inquiry.entity.Inquiry;
+import com.sonbadream_server.domain.inquiry.entity.InquiryMessage;
+import com.sonbadream_server.domain.notification.entity.Notification;
+import com.sonbadream_server.domain.region.entity.Region;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import com.sonbadream_server.global.BaseTimeEntity;
+import lombok.*;
+
+@Builder
+@Getter
+@Entity
+@Table(name = "`user`")
+@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class User extends BaseTimeEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
+    private Long userId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "region_id")
+    private Region region;
+
+    @Column(name = "kakao_id", nullable = false, unique = true)
+    private Long kakaoId;
+
+    @Column(name = "nickname", nullable = false, length = 20)
+    private String nickname;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    private UserRole role;
+
+    @Column(name = "birth")
+    private LocalDate birth;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "gender", length = 20)
+    private Gender gender;
+
+    @Column(name = "kakao_access_token", length = 255)
+    private String kakaoAccessToken;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private UserStatus status;
+
+    @Column(name = "withdrawn_at")
+    private LocalDateTime withdrawnAt;
+
+    @OneToOne(mappedBy = "user")
+    private Engineer engineer;
+
+    @OneToMany(mappedBy = "user")
+    private List<Notification> notifications = new ArrayList<>();
+
+    @OneToMany(mappedBy = "blocker")
+    private List<Block> blocksByMe = new ArrayList<>();
+
+    @OneToMany(mappedBy = "blocked")
+    private List<Block> blocksAgainstMe = new ArrayList<>();
+
+    @OneToMany(mappedBy = "requester")
+    private List<Inquiry> requestedInquiries = new ArrayList<>();
+
+    @OneToMany(mappedBy = "target")
+    private List<Inquiry> targetedInquiries = new ArrayList<>();
+
+    @OneToMany(mappedBy = "sender")
+    private List<InquiryMessage> inquiryMessages = new ArrayList<>();
+
+    public void updateKakaoAccessToken(String kakaoAccessToken) {
+        this.kakaoAccessToken = kakaoAccessToken;
+    }
+
+    public void updateSignupInfo(Region region, String nickname, LocalDate birth, Gender gender) {
+        this.region = region;
+        this.nickname = nickname;
+        this.birth = birth;
+        this.gender = gender;
+    }
+
+    public void completeSignup() {
+        this.status = UserStatus.ACTIVE;
+    }
+
+    public void suspend() {
+        this.status = UserStatus.SUSPENDED;
+    }
+
+    public void activate() {
+        this.status = UserStatus.ACTIVE;
+    }
+
+    public void clearKakaoAccessToken() {
+        this.kakaoAccessToken = null;
+    }
+
+    public void withdraw() {
+        if (this.userId == null) {
+            throw new IllegalStateException("Cannot withdraw user without id");
+        }
+        this.status = UserStatus.WITHDRAWN;
+        this.withdrawnAt = LocalDateTime.now();
+
+        // PII anonymization on withdrawal
+        this.nickname = "withdrawn";
+        this.birth = null;
+        this.gender = null;
+        this.region = null;
+        this.kakaoId = -Math.abs(this.userId);
+        this.kakaoAccessToken = null;
+    }
+
+    public void clearEngineer() {
+        this.engineer = null;
+    }
+
+}
