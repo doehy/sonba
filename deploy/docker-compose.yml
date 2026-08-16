@@ -1,0 +1,52 @@
+services:
+  app:
+    image: ${APP_IMAGE}
+    container_name: sonbadream-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Asia/Seoul
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - sonbadream
+
+  prometheus:
+    image: prom/prometheus:v3.6.0
+    container_name: sonbadream-prometheus
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - sonbadream
+
+  grafana:
+    image: grafana/grafana:12.2.1
+    container_name: sonbadream-grafana
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
+    volumes:
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - sonbadream
+
+networks:
+  sonbadream:
+
+volumes:
+  prometheus-data:
+  grafana-data:
