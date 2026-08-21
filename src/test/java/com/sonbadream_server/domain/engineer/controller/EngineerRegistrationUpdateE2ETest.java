@@ -118,6 +118,10 @@ class EngineerRegistrationUpdateE2ETest {
         Long engineerId = savedEngineer.getEngineerId();
         flushAndClear();
 
+        List<Portfolio> registeredPortfolios = portfolioRepository.findByEngineer_EngineerId(engineerId);
+        Long beforeAfterPortfolioId = registeredPortfolios.get(1).getPortfolioId();
+        Long galleryPortfolioId = registeredPortfolios.get(2).getPortfolioId();
+
         mockMvc.perform(get("/engineers/{engineerId}", engineerId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -130,13 +134,15 @@ class EngineerRegistrationUpdateE2ETest {
                 .andExpect(jsonPath("$.data.portfolioItems[0].type").value("SINGLE"))
                 .andExpect(jsonPath("$.data.portfolioItems[0].title").value("현관 중문 시공"))
                 .andExpect(jsonPath("$.data.portfolioItems[0].images[0]").value(imageUrl("single.jpg")))
+                .andExpect(jsonPath("$.data.portfolioItems[1].portfolioId").value(beforeAfterPortfolioId))
                 .andExpect(jsonPath("$.data.portfolioItems[1].type").value("BEFORE_AFTER"))
                 .andExpect(jsonPath("$.data.portfolioItems[1].images[0]").value(imageUrl("before.jpg")))
                 .andExpect(jsonPath("$.data.portfolioItems[1].images[1]").value(imageUrl("after.jpg")))
+                .andExpect(jsonPath("$.data.portfolioItems[2].portfolioId").value(galleryPortfolioId))
                 .andExpect(jsonPath("$.data.portfolioItems[2].type").value("GALLERY"))
                 .andExpect(jsonPath("$.data.portfolioItems[2].images.length()").value(3));
 
-        EngineerRequestDto updateRequest = createUpdateRequest();
+        EngineerRequestDto updateRequest = createUpdateRequest(beforeAfterPortfolioId, galleryPortfolioId);
 
         mockMvc.perform(patch("/engineers/{engineerId}", engineerId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -154,10 +160,12 @@ class EngineerRegistrationUpdateE2ETest {
                 .andExpect(jsonPath("$.data.categories.length()").value(1))
                 .andExpect(jsonPath("$.data.categories[0]").value("타일"))
                 .andExpect(jsonPath("$.data.portfolioItems.length()").value(2))
+                .andExpect(jsonPath("$.data.portfolioItems[0].portfolioId").value(beforeAfterPortfolioId))
                 .andExpect(jsonPath("$.data.portfolioItems[0].type").value("BEFORE_AFTER"))
                 .andExpect(jsonPath("$.data.portfolioItems[0].title").value("수정 욕실 리모델링"))
                 .andExpect(jsonPath("$.data.portfolioItems[0].images[0]").value(imageUrl("updated-before.jpg")))
                 .andExpect(jsonPath("$.data.portfolioItems[0].images[1]").value(imageUrl("updated-after.jpg")))
+                .andExpect(jsonPath("$.data.portfolioItems[1].portfolioId").value(galleryPortfolioId))
                 .andExpect(jsonPath("$.data.portfolioItems[1].type").value("GALLERY"))
                 .andExpect(jsonPath("$.data.portfolioItems[1].title").value("수정 신혼집 시공"))
                 .andExpect(jsonPath("$.data.portfolioItems[1].images.length()").value(2));
@@ -167,6 +175,9 @@ class EngineerRegistrationUpdateE2ETest {
         assertThat(portfolios)
                 .extracting(Portfolio::getType)
                 .containsExactly(PortfolioType.BEFORE_AFTER, PortfolioType.GALLERY);
+        assertThat(portfolios)
+                .extracting(Portfolio::getPortfolioId)
+                .containsExactly(beforeAfterPortfolioId, galleryPortfolioId);
         assertThat(portfolios.stream().flatMap(portfolio -> portfolio.getImages().stream()))
                 .hasSize(4);
     }
@@ -197,15 +208,15 @@ class EngineerRegistrationUpdateE2ETest {
                 .build();
     }
 
-    private EngineerRequestDto createUpdateRequest() {
+    private EngineerRequestDto createUpdateRequest(Long beforeAfterPortfolioId, Long galleryPortfolioId) {
         return EngineerRequestDto.builder()
                 .categories(List.of("타일"))
                 .portfolioItems(List.of(
-                        portfolioItem(PortfolioType.BEFORE_AFTER, "수정 욕실 리모델링", List.of(
+                        portfolioItem(beforeAfterPortfolioId, PortfolioType.BEFORE_AFTER, "수정 욕실 리모델링", List.of(
                                 imageUrl("updated-before.jpg"),
                                 imageUrl("updated-after.jpg")
                         )),
-                        portfolioItem(PortfolioType.GALLERY, "수정 신혼집 시공", List.of(
+                        portfolioItem(galleryPortfolioId, PortfolioType.GALLERY, "수정 신혼집 시공", List.of(
                                 imageUrl("updated-gallery-1.jpg"),
                                 imageUrl("updated-gallery-2.jpg")
                         ))
@@ -222,7 +233,17 @@ class EngineerRegistrationUpdateE2ETest {
     }
 
     private PortfolioItemRequestDto portfolioItem(PortfolioType type, String title, List<String> images) {
+        return portfolioItem(null, type, title, images);
+    }
+
+    private PortfolioItemRequestDto portfolioItem(
+            Long portfolioId,
+            PortfolioType type,
+            String title,
+            List<String> images
+    ) {
         return PortfolioItemRequestDto.builder()
+                .portfolioId(portfolioId)
                 .type(type)
                 .title(title)
                 .images(images)
