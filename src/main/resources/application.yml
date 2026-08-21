@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: sonbadream-server
+  profiles:
+    default: local
+  sql:
+    init:
+      mode: always
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+    defer-datasource-initialization: true
+
+logging:
+  level:
+    root: info
+    com.sonbadream_server: info
+
+jwt:
+  access-expiration: 7200000 # 2시간
+  refresh-expiration: 1209600000 # 14일
+
+cloudflare:
+  r2:
+    access-key: ${CLOUDFLARE_R2_ACCESS_KEY}
+    secret-key: ${CLOUDFLARE_R2_SECRET_KEY}
+    bucket: sonbadream-image
+    endpoint: https://0045cb521885b707ed939317094ad0cc.r2.cloudflarestorage.com
+    region: auto
+    public-domain: https://pub-3083433cf5c048d589ce1e3f627e12d6.r2.dev
+    presigned-expiration-seconds: 600
+
+image:
+  cleanup:
+    enabled: true
+    orphan-retention-hours: 24
+    cron: 0 30 3 * * *
+
+app:
+  swagger-enabled: false
+  auth-rate-limit:
+    enabled: true
+    max-requests: 30
+    window-seconds: 60
+    max-keys: 10000
+
+admin:
+  verification:
+    password-hash: ${ADMIN_VERIFICATION_PASSWORD_HASH}
+    token-expiration: ${ADMIN_VERIFICATION_TOKEN_EXPIRATION:1800000}

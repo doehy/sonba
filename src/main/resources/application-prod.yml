@@ -1,0 +1,49 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  sql:
+    init:
+      mode: always
+  jpa:
+    hibernate:
+      ddl-auto: update
+    defer-datasource-initialization: true
+
+kakao:
+  client:
+    id: ${KAKAO_CLIENT_ID}
+  redirect:
+    uri: https://api.sonbadream.kr/auth/kakao/callback
+
+jwt:
+  secret: ${JWT_SECRET}
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+management:
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  swagger-enabled: false
+  base-url: https://api.sonbadream.kr
+  frontend-url: ${FRONTEND_URL}
+  cookie-secure: true
+  cookie-same-site: Lax
+  actuator:
+    prometheus-scrape-enabled: true
