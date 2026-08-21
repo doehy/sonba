@@ -22,11 +22,18 @@ logging:
 
 jwt:
   secret: test-secret-key-for-jwt-signing-must-be-long-enough-1234567890
+  access-expiration: 7200000
+  refresh-expiration: 1209600000
 
 cloudflare:
   r2:
     access-key: test-access-key
     secret-key: test-secret-key
+    bucket: test-bucket
+    endpoint: https://test.r2.cloudflarestorage.com
+    region: auto
+    public-domain: https://image.test
+    presigned-expiration-seconds: 600
 
 admin:
   verification:
