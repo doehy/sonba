@@ -245,18 +245,18 @@ INSERT IGNORE INTO region (city, district) VALUES
                                         ('제주특별자치도', '서귀포시'),
                                         ('제주특별자치도', '제주시');
 
-INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (1, '주방', true);
-INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (2, '도배', true);
-INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (3, '마루', true);
-INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (4, '장판', true);
-INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (5, '욕실', true);
-INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (6, '도어', true);
-INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (7, '조명', true);
-INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (8, '시트필름', true);
-INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (9, '커튼블라인드', true);
-INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (10, '샷시', true);
-INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (11, '타일', true);
-INSERT IGNORE INTO category (category_id, category_name, is_active) VALUES (12, '페인트', true);
+INSERT IGNORE INTO category (category_id, category_name) VALUES (1, '주방');
+INSERT IGNORE INTO category (category_id, category_name) VALUES (2, '도배');
+INSERT IGNORE INTO category (category_id, category_name) VALUES (3, '마루');
+INSERT IGNORE INTO category (category_id, category_name) VALUES (4, '장판');
+INSERT IGNORE INTO category (category_id, category_name) VALUES (5, '욕실');
+INSERT IGNORE INTO category (category_id, category_name) VALUES (6, '도어');
+INSERT IGNORE INTO category (category_id, category_name) VALUES (7, '조명');
+INSERT IGNORE INTO category (category_id, category_name) VALUES (8, '시트필름');
+INSERT IGNORE INTO category (category_id, category_name) VALUES (9, '커튼블라인드');
+INSERT IGNORE INTO category (category_id, category_name) VALUES (10, '샷시');
+INSERT IGNORE INTO category (category_id, category_name) VALUES (11, '타일');
+INSERT IGNORE INTO category (category_id, category_name) VALUES (12, '페인트');
 
 INSERT IGNORE INTO notification_type (notification_type_id, type, template, created_at, modified_at)
 VALUES
