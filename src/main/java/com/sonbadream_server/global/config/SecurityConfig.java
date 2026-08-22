@@ -36,8 +36,8 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AdminVerificationFilter adminVerificationFilter;
 
-    @Value("${app.base-url}")
-    private String baseUrl;
+    @Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
 
     @Value("${app.actuator.prometheus-scrape-enabled:false}")
     private boolean prometheusScrapeEnabled;
@@ -60,12 +60,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of(
-                "http://localhost:8080",
-                "http://localhost:5173",
-                "https://sonbadream-front-delta.vercel.app",
-                baseUrl
-        ));
+        configuration.setAllowedOriginPatterns(List.of(frontendUrl));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"));
         configuration.addAllowedHeader("*");
         configuration.setExposedHeaders(Arrays.asList("Set-Cookie", "Location"));
