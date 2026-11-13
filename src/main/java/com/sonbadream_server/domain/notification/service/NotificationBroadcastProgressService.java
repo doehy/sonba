@@ -7,7 +7,6 @@ import com.sonbadream_server.domain.notification.repository.NotificationBulkRepo
 import com.sonbadream_server.global.exception.CustomException;
 import com.sonbadream_server.global.exception.ErrorCode;
 import java.util.List;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -22,35 +21,29 @@ public class NotificationBroadcastProgressService {
     private final NotificationBroadcastRepository notificationBroadcastRepository;
     private final NotificationBulkRepository notificationBulkRepository;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Optional<NotificationBroadcastJobSnapshot> start(Long broadcastId) {
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void writeChunk(Long broadcastId, List<Long> ids) {
         NotificationBroadcast broadcast = findBroadcastForUpdate(broadcastId);
-        if (broadcast.getStatus() != NotificationBroadcastStatus.PENDING) {
-            return Optional.empty();
-        }
-        broadcast.start();
-        return Optional.of(new NotificationBroadcastJobSnapshot(
-                broadcast.getNotificationType().getNotificationTypeId(),
-                broadcast.getContent(),
-                broadcast.getLastProcessedUserId()
-        ));
+        if (ids.isEmpty()) return;
+        notificationBulkRepository.saveNoticeNotifications(broadcastId, ids,
+                broadcast.getNotificationType().getNotificationTypeId(), broadcast.getContent());
+        broadcast.recordProcessedChunk(ids.size());
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void saveChunk(
-            Long broadcastId,
-            List<Long> userIds,
-            Integer notificationTypeId,
-            String content
-    ) {
-        int insertedCount = notificationBulkRepository.saveNoticeNotifications(
-                broadcastId,
-                userIds,
-                notificationTypeId,
-                content
-        );
+    public void prepareRecovery(Long broadcastId) {
         NotificationBroadcast broadcast = findBroadcastForUpdate(broadcastId);
-        broadcast.recordProcessedChunk(insertedCount, userIds.getLast());
+        if (broadcast.getStatus() == NotificationBroadcastStatus.PROCESSING) broadcast.retry();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean start(Long broadcastId) {
+        NotificationBroadcast broadcast = findBroadcastForUpdate(broadcastId);
+        if (broadcast.getStatus() != NotificationBroadcastStatus.PENDING) {
+            return false;
+        }
+        broadcast.start();
+        return true;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

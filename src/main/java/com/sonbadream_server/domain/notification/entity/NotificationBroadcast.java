@@ -44,6 +44,7 @@ public class NotificationBroadcast extends BaseTimeEntity {
     @Column(name = "processed_count", nullable = false)
     private long processedCount;
 
+    // Legacy schema compatibility only. Restart checkpoints belong to Spring Batch.
     @Column(name = "last_processed_user_id", nullable = false)
     private long lastProcessedUserId;
 
@@ -74,9 +75,8 @@ public class NotificationBroadcast extends BaseTimeEntity {
         this.failureReason = null;
     }
 
-    public void recordProcessedChunk(long count, long lastProcessedUserId) {
+    public void recordProcessedChunk(long count) {
         this.processedCount += count;
-        this.lastProcessedUserId = lastProcessedUserId;
     }
 
     public void complete() {

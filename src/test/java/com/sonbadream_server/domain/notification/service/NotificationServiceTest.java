@@ -321,7 +321,7 @@ class NotificationServiceTest {
                     NotificationBroadcast.create(noticeType, "전체 공지입니다.", 10L)
             );
             broadcast.start();
-            broadcast.recordProcessedChunk(3L, 3L);
+            broadcast.recordProcessedChunk(3L);
             broadcast.fail("일시 오류");
 
             given(userService.getCurrentUser()).willReturn(adminUser);
@@ -335,7 +335,6 @@ class NotificationServiceTest {
             assertThat(response.getStatus()).isEqualTo(NotificationBroadcastStatus.PENDING);
             assertThat(broadcast.getStatus()).isEqualTo(NotificationBroadcastStatus.PENDING);
             assertThat(broadcast.getProcessedCount()).isEqualTo(3L);
-            assertThat(broadcast.getLastProcessedUserId()).isEqualTo(3L);
             assertThat(broadcast.getFailureReason()).isNull();
         }
 

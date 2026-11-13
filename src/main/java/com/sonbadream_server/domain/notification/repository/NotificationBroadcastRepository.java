@@ -9,6 +9,10 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface NotificationBroadcastRepository extends JpaRepository<NotificationBroadcast, Long> {
 
+    // 중단됐거나 대기중인 공지 알림 찾기
+    @Query("select nb.notificationBroadcastId from NotificationBroadcast nb where nb.status in (com.sonbadream_server.domain.notification.entity.NotificationBroadcastStatus.PENDING, com.sonbadream_server.domain.notification.entity.NotificationBroadcastStatus.PROCESSING)")
+    java.util.List<Long> findInterruptedIds();
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select nb

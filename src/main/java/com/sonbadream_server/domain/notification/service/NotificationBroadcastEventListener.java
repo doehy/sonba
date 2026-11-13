@@ -11,11 +11,11 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class NotificationBroadcastEventListener {
 
-    private final NotificationBroadcastWorker notificationBroadcastWorker;
+    private final NotificationBroadcastJobLauncher notificationBroadcastJobLauncher;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handle(NotificationBroadcastRequestedEvent event) {
-        notificationBroadcastWorker.process(event.broadcastId());
+        notificationBroadcastJobLauncher.process(event.broadcastId());
     }
 }

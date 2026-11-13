@@ -5,6 +5,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
@@ -54,6 +56,18 @@ public class NotificationBulkRepository {
                 return userIds.size();
             }
         });
+        // Never commit the cursor unless every requested user has a persisted notification.
+        // 데이터 정합성 확보를 위함이다. insert ignore가 일부 에러 코드를 숨길 수 있으니 실제로 존재하는지 확인한다.
+        String placeholders = String.join(",", Collections.nCopies(userIds.size(), "?"));
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(broadcastId);
+        arguments.addAll(userIds);
+        Long persisted = jdbcTemplate.queryForObject(
+                "select count(*) from notification where notification_broadcast_id = ? and user_id in ("
+                        + placeholders + ")", Long.class, arguments.toArray());
+        if (persisted == null || persisted != userIds.size()) {
+            throw new org.springframework.dao.DataIntegrityViolationException("공지 알림 일부 저장 실패");
+        }
         return countInsertedRows(updateCounts, userIds.size());
     }
 

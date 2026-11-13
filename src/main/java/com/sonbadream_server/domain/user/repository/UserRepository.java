@@ -52,19 +52,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     );
 
     @Query("""
-            select u.userId
-            from User u
-            where u.status = :status
-              and u.userId > :lastUserId
-            order by u.userId asc
-            """)
-    List<Long> findUserIdsByStatusAfterId(
-            @Param("status") UserStatus status,
-            @Param("lastUserId") Long lastUserId,
-            Pageable pageable
-    );
-
-    @Query("""
             select u
             from User u
             where u.status = :status

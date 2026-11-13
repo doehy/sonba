@@ -3,6 +3,11 @@ spring:
     name: sonbadream-server
   profiles:
     default: local
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: always
   sql:
     init:
       mode: always
